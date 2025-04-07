@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Block Breaker</title>
+  <!-- レトロなフォント「Press Start 2P」を使用 -->
+  <link href="https://fonts.googleapis.com/css?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    /* 全体背景 */
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #1c1c1c, #555);
+      font-family: 'Press Start 2P', cursive;
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    /* ゲームコンテナ */
+    #gameContainer {
+      transform-origin: top center;
+      position: relative;
+      width: 800px;
+      height: 600px;
+      border: 2px solid #fff;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      background-color: #000;
+    }
+    /* キャンバス設定 */
+    canvas {
+      display: block;
+    }
+    /* タイトル画面（開始前のオーバーレイ） */
+    #titleScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    #titleScreen h1 {
+      font-size: 48px;
+      margin-bottom: 40px;
+    }
+    /* ボタン共通のデザイン（START, RETRY） */
+    #startButton, #retryButton {
+      padding: 10px 20px;
+      font-size: 24px;
+      font-family: 'Press Start 2P', cursive;
+      background: linear-gradient(135deg, #f06, #f79);
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 5px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      transition: transform 0.2s;
+    }
+    #startButton:hover, #retryButton:hover {
+      transform: scale(1.05);
+    }
+    /* RETRYボタンの位置設定と初期非表示 */
+    #retryButton {
+      position: absolute;
+      top: 50%;
+      left: 43%;
+      font-size: 20px;
+      display: none;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <!-- タイトル画面 -->
+    <div id="titleScreen">
+      <h1>BLOCK BREAKER</h1>
+      <button id="startButton">START</button>
+    </div>
+    <!-- リトライボタン -->
+    <button id="retryButton">RETRY</button>
+  </div>
+
+  <script>
+    // 角丸矩形を描画するヘルパー関数
+    function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+      if (typeof radius === 'undefined') {
+        radius = 5;
+      }
+      if (typeof radius === 'number') {
+        radius = {tl: radius, tr: radius, br: radius, bl: radius};
+      } else {
+        var defaultRadius = {tl: 0, tr: 0, br: 0, bl: 0};
+        for (var side in defaultRadius) {
+          radius[side] = radius[side] || defaultRadius[side];
+        }
+      }
+      ctx.beginPath();
+      ctx.moveTo(x + radius.tl, y);
+      ctx.lineTo(x + width - radius.tr, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + radius.tr);
+      ctx.lineTo(x + width, y + height - radius.br);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - radius.br, y + height);
+      ctx.lineTo(x + radius.bl, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - radius.bl);
+      ctx.lineTo(x, y + radius.tl);
+      ctx.quadraticCurveTo(x, y, x + radius.tl, y);
+      ctx.closePath();
+      if (fill) {
+        ctx.fill();
+      }
+      if (stroke) {
+        ctx.stroke();
+      }
+    }
+
+    // キャンバス、コンテキスト、DOM要素の取得
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const titleScreen = document.getElementById("titleScreen");
+    const startButton = document.getElementById("startButton");
+    const retryButton = document.getElementById("retryButton");
+
+    // ゲーム状態の管理
+    let gameRunning = false;
+    let gameOver = false;
+    let gameClear = false;
+    let score = 0;
+    let fadeAlpha = 0.0;
+
+    // パドルクラス
+    class Paddle {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 100;
+        this.height = 10;
+        this.speed = 10;
+        this.dx = 0;
+      }
+      // パドルの移動処理
+      move() {
+        this.x += this.dx;
+        if (this.x < 0) this.x = 0;
+        if (this.x > canvas.width - this.width) this.x = canvas.width - this.width;
+      }
+      // パドルの描画
+      draw(ctx) {
+        // 上部は明るく、下部は少し暗めのグラデーションを適用
+        let gradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
+        gradient.addColorStop(0, "#ffffff");
+        gradient.addColorStop(1, "#cccccc");
+        ctx.fillStyle = gradient;
+        ctx.strokeStyle = "#888";
+        ctx.lineWidth = 2;
+        roundRect(ctx, this.x, this.y, this.width, this.height, 5, true, true);
+      }
+      // パドルの境界情報を取得
+      getBounds() {
+        return { x: this.x, y: this.y, width: this.width, height: this.height };
+      }
+    }
+
+    // ボールクラス
+    class Ball {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.diameter = 20;
+        this.dx = 3;
+        this.dy = 3;
+        this.speedMultiplier = 1.03;
+        this.maxSpeed = 10;
+      }
+      // ボールの移動処理
+      move() {
+        this.x += this.dx;
+        this.y += this.dy;
+        if (this.x < 0 || this.x > canvas.width - this.diameter) {
+          this.dx = -this.dx;
+        }
+        if (this.y < 0) {
+          this.dy = -this.dy;
+        }
+      }
+      // ボールの描画
+      draw(ctx) {
+        let gradient = ctx.createRadialGradient(
+          this.x + this.diameter/2,
+          this.y + this.diameter/2,
+          this.diameter/4,
+          this.x + this.diameter/2,
+          this.y + this.diameter/2,
+          this.diameter/2
+        );
+        gradient.addColorStop(0, "yellow");
+        gradient.addColorStop(1, "orange");
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(this.x + this.diameter/2, this.y + this.diameter/2, this.diameter/2, 0, Math.PI*2);
+        ctx.fill();
+      }
+      // ボールの境界情報を取得
+      getBounds() {
+        return { x: this.x, y: this.y, width: this.diameter, height: this.diameter };
+      }
+      // ボールの速度を増加
+      increaseSpeed() {
+        if (Math.abs(this.dx) < this.maxSpeed) {
+          this.dx *= this.speedMultiplier;
+          this.dy *= this.speedMultiplier;
+        }
+      }
+      // ボールのY座標を取得
+      getY() {
+        return this.y;
+      }
+    }
+
+    // ブロッククラス
+    class Block {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 60;
+        this.height = 20;
+        this.color = this.getRandomColor();
+      }
+      // ランダムな色を取得
+      getRandomColor() {
+        const colors = [
+          "tomato", "limegreen", "dodgerblue", "gold",
+          "blueviolet", "hotpink", "turquoise", "orangered"
+        ];
+        return colors[Math.floor(Math.random() * colors.length)];
+      }
+      // ブロックの描画
+      draw(ctx) {
+        let gradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
+        gradient.addColorStop(0, "white");
+        gradient.addColorStop(1, this.color);
+        ctx.fillStyle = gradient;
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 2;
+        // シャドウを追加して描画
+        ctx.save();
+        ctx.shadowColor = "rgba(0,0,0,0.5)";
+        ctx.shadowBlur = 5;
+        roundRect(ctx, this.x, this.y, this.width, this.height, 5, true, true);
+        ctx.restore();
+      }
+      // ブロックの境界情報を取得
+      getBounds() {
+        return { x: this.x, y: this.y, width: this.width, height: this.height };
+      }
+    }
+
+    // ゲームオブジェクト
+    let paddle, ball, blocks;
+
+    // ゲーム初期化処理
+    function initGame() {
+      score = 0;
+      fadeAlpha = 0.0;
+      gameOver = false;
+      gameClear = false;
+      // パドルの初期位置：x=350, y=550
+      paddle = new Paddle(350, 550);
+      ball = new Ball(400, 300);
+      blocks = [];
+      // ブロックを5行×10列で配置
+      const blockWidth = 60, blockHeight = 20;
+      for (let row = 0; row < 5; row++) {
+        for (let col = 0; col < 10; col++) {
+          blocks.push(new Block(60 + col * (blockWidth + 10), 50 + row * (blockHeight + 10)));
+        }
+      }
+    }
+
+    // 矩形同士の衝突判定
+    function isIntersecting(r1, r2) {
+      return !(r2.x > r1.x + r1.width ||
+               r2.x + r2.width < r1.x ||
+               r2.y > r1.y + r1.height ||
+               r2.y + r2.height < r1.y);
+    }
+
+    // キー操作でパドルを制御
+    document.addEventListener("keydown", function(e) {
+      if (!gameRunning) return;
+      if (e.key === "ArrowLeft") {
+        paddle.dx = -paddle.speed;
+      } else if (e.key === "ArrowRight") {
+        paddle.dx = paddle.speed;
+      }
+    });
+    document.addEventListener("keyup", function(e) {
+      if (!gameRunning) return;
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        paddle.dx = 0;
+      }
+    });
+
+    // ゲームループ（requestAnimationFrameで実行）
+    function gameLoop() {
+      if (!gameRunning) return;
+      
+      // オブジェクトの更新処理
+      paddle.move();
+      ball.move();
+      
+      // パドルとの衝突判定
+      if (isIntersecting(ball.getBounds(), paddle.getBounds())) {
+        ball.dy = -Math.abs(ball.dy);
+      }
+      
+      // ブロックとの衝突判定
+      for (let i = 0; i < blocks.length; i++) {
+        if (isIntersecting(ball.getBounds(), blocks[i].getBounds())) {
+          blocks.splice(i, 1);
+          ball.dy = -ball.dy;
+          score++;
+          ball.increaseSpeed();
+          break;
+        }
+      }
+      
+      // ゲームオーバー判定：ボールがキャンバス下部から消えた場合
+      if (ball.getY() > canvas.height) {
+        gameOver = true;
+        gameRunning = false;
+      }
+      
+      // ゲームクリア判定：全ブロック破壊
+      if (blocks.length === 0) {
+        gameClear = true;
+        gameRunning = false;
+      }
+      
+      // 背景の描画（グラデーション）
+      let bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      bgGradient.addColorStop(0, "darkgray");
+      bgGradient.addColorStop(1, "black");
+      ctx.fillStyle = bgGradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // 各オブジェクトの描画
+      paddle.draw(ctx);
+      ball.draw(ctx);
+      for (let block of blocks) {
+        block.draw(ctx);
+      }
+      
+      // スコア表示（影付き）
+      ctx.font = "26px Arial";
+      ctx.fillStyle = "black";
+      ctx.fillText("SCORE: " + score, 602, 32);
+      ctx.fillStyle = "white";
+      ctx.fillText("SCORE: " + score, 600, 30);
+      
+      // ゲームオーバー時の表示
+      if (gameOver) {
+        drawGameOver();
+      }
+      // ゲームクリア時の表示（フェードイン効果）
+      if (gameClear) {
+        if (fadeAlpha < 1) fadeAlpha += 0.01;
+        drawGameClear();
+      }
+      
+      requestAnimationFrame(gameLoop);
+    }
+
+    // ゲームオーバー表示
+    function drawGameOver() {
+      ctx.fillStyle = "white";
+      ctx.font = "bold 30px 'Press Start 2P'";
+      ctx.fillText("GAME OVER", 270, 300);
+      retryButton.style.display = "block";
+    }
+
+    // ゲームクリア表示
+    function drawGameClear() {
+      ctx.fillStyle = "white";
+      ctx.font = "bold 30px 'Press Start 2P'";
+      ctx.fillText("GAME CLEAR!", 250, 300);
+      retryButton.style.display = "block";
+    }
+
+    // ゲーム開始処理
+    function startGame() {
+      initGame();
+      gameRunning = true;
+      retryButton.style.display = "none";
+      requestAnimationFrame(gameLoop);
+    }
+
+    // STARTボタン押下でタイトル画面を非表示にし、ゲーム開始
+    startButton.addEventListener("click", () => {
+      titleScreen.style.display = "none";
+      startGame();
+    });
+
+    // RETRYボタン押下で再度ゲーム開始
+    retryButton.addEventListener("click", () => {
+      startGame();
+    });
+  </script>
+</body>
+</html>

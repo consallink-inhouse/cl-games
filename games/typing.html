@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>IT Typing Game Challenge</title>
+  <!-- おしゃれなレトロフォント「Press Start 2P」を利用 -->
+  <link href="https://fonts.googleapis.com/css?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #1c1c1c, #555);
+      font-family: 'Press Start 2P', cursive;
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    /* ゲームコンテナ（キャンバス＋ボタン） */
+    #gameContainer {
+      position: relative;
+      width: 900px;
+      height: 600px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      border: 2px solid #fff;
+      background-color: #000;
+    }
+    canvas {
+      display: block;
+      background-color: #000;
+    }
+    /* タイトル画面オーバーレイ */
+    #titleScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    #titleScreen h1 {
+      font-size: 48px;
+      margin-bottom: 20px;
+    }
+    /* 難易度選択用 */
+    #levelSelectContainer {
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    #levelSelect {
+      font-size: 20px;
+      padding: 5px;
+      margin-top: 10px;
+      font-family: 'Press Start 2P', cursive;
+    }
+    /* ボタン共通 */
+    #startButton, #topButton {
+      padding: 10px 20px;
+      font-size: 24px;
+      font-family: 'Press Start 2P', cursive;
+      background: linear-gradient(135deg, #f06, #f79);
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 5px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      transition: transform 0.2s;
+    }
+    #startButton:hover, #topButton:hover {
+      transform: scale(1.05);
+    }
+    /* TOPボタン（COMPLETE画面で表示） */
+    #topButton {
+      position: absolute;
+      left: 350px;
+      top: 360px;
+      width: 150px;
+      height: 40px;
+      font-size: 20px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <canvas id="gameCanvas" width="900" height="600"></canvas>
+    <!-- タイトル画面 -->
+    <div id="titleScreen">
+      <h1>IT TYPING GAME</h1>
+      <div id="levelSelectContainer">
+        <select id="levelSelect">
+          <option value="1">LEVEL 1</option>
+          <option value="2">LEVEL 2</option>
+          <option value="3">LEVEL 3</option>
+          <option value="4">LEVEL 4</option>
+          <option value="5">LEVEL 5</option>
+        </select>
+      </div>
+      <button id="startButton">START</button>
+    </div>
+    <!-- TOPボタン -->
+    <button id="topButton">TOP</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // ゲームエリア（左側）と情報表示エリア（右側）の設定
+    const GAME_WIDTH = 700;
+    const INFO_WIDTH = 200;
+    const CANVAS_WIDTH = GAME_WIDTH + INFO_WIDTH; // 850
+    const CANVAS_HEIGHT = 600;
+
+    // ゲーム状態用変数
+    let gameStarted = false;
+    let gameFinished = false;
+    let questionList = [];   // 選抜した20問の問題リスト
+    let questionIndex = 0;   // 現在の問題番号（0～19）
+    let currentWord = "";
+    let currentInput = "";
+    let gameStartTime = 0;
+    let questionStartTime = 0;
+    let bonusSum = 0;        // 各問題ごとの入力速度ボーナスの合計
+    let mistakeCount = 0;    // タイピングミスの総数
+    let finalScore = 0;      // 最終スコア
+
+    // 落下位置と速度
+    let wordY = 0;
+    let fallSpeed = 1;
+
+    // 選択された難易度
+    let difficultyLevel = 1;
+
+    // 難易度別50問の単語・フレーズリスト
+    const wordLists = {
+      "1": [
+        "app", "bug", "code", "git", "api", "sql", "cpu", "ram", "bit", "byte",
+        "loop", "node", "data", "port", "ping", "web", "os", "gui", "cmd", "cli",
+        "dev", "sys", "io", "sdk", "ide", "hex", "bot", "log", "boot", "file",
+        "cache", "chip", "disk", "core", "rom", "bus", "nibble", "bytecode", "usb", "applet",
+        "script", "link", "driver", "modem", "pixel", "thread", "bugfix", "compile", "binary", "terminal"
+      ],
+      "2": [
+        "server", "client", "debug", "linux", "router", "proxy", "branch", "commit", "version", "execute",
+        "virtual", "kernel", "socket", "encryption", "decryption", "module", "object", "class", "method", "function",
+        "variable", "iteration", "string", "boolean", "integer", "float", "double", "pointer", "reference", "exception",
+        "handler", "array", "list", "stack", "queue", "tree", "graph", "loopback", "algorithm", "network",
+        "protocol", "bandwidth", "latency", "throughput", "middleware", "virtualization", "container", "deployment", "integration", "firewall"
+      ],
+      "3": [
+        "protocol", "framework", "encryption", "algorithm", "firewall", "repository", "virtualization", "compiler", "debugger", "middleware",
+        "authentication", "authorization", "serialization", "deserialization", "concurrency", "multithreading", "synchronization", "asynchronous", "deployment", "integration",
+        "configuration", "optimization", "benchmarking", "refactoring", "singleton", "polymorphism", "inheritance", "encapsulation", "abstraction", "interface",
+        "dependency", "injection", "RESTful", "microservice", "scalability", "robustness", "latency", "throughput", "bandwidth", "distributed",
+        "transaction", "loadbalancing", "clustering", "sharding", "replication", "indexing", "query", "schema", "normalization", "denormalization"
+      ],
+      "4": [
+        "synchronization", "multithreading", "asynchronous", "architecture", "microservices", "containerization", "distributed system", "concurrency control", "deadlock", "latency optimization",
+        "scalability", "elastic computing", "load balancing", "virtualization", "serverless computing", "data replication", "fault tolerance", "high availability", "disaster recovery", "data pipeline",
+        "stream processing", "event-driven", "message queue", "broker", "API gateway", "service mesh", "orchestration", "infrastructure as code", "continuous integration", "continuous deployment",
+        "DevOps", "monitoring", "observability", "log aggregation", "performance tuning", "system call", "kernel mode", "user mode", "buffer overflow", "memory leak",
+        "garbage collection", "runtime environment", "code injection", "dependency management", "resource allocation", "sandboxing", "multi-factor authentication", "zero trust security", "hyperconvergence", "container orchestration"
+      ],
+      "5": [
+        "public static void main", "console.log('Hello World')", "if (condition) { }", "try { } catch (Exception e) { }", "SELECT * FROM users;", "git commit -m 'Initial commit'", "while(true) { break; }", "function prototype", "interface implementation", "object oriented programming",
+        "asynchronous callback", "promise.then().catch()", "dependency injection container", "microservices architecture", "RESTful API design", "MVC pattern", "singleton pattern", "factory method", "observer pattern", "command line interface",
+        "integrated development environment", "virtual private network", "cloud computing platform", "load balancing algorithm", "distributed ledger technology", "blockchain protocol", "cryptographic hash function", "recursive function call", "binary search algorithm", "machine learning model",
+        "neural network architecture", "data mining technique", "big data analytics", "container orchestration", "continuous integration pipeline", "agile software development", "test driven development", "behavior driven development", "object relational mapping", "software as a service",
+        "platform as a service", "infrastructure as a service", "end-to-end encryption", "wireless communication protocol", "internet of things", "augmented reality", "virtual reality", "quantum computing algorithm", "distributed caching system", "real-time data processing"
+      ]
+    };
+
+    // 50問の中から重複なく20問をランダムに選抜
+    function selectQuestions(wordArray) {
+      const copy = wordArray.slice();
+      const selected = [];
+      for (let i = 0; i < 20; i++) {
+        const index = Math.floor(Math.random() * copy.length);
+        selected.push(copy.splice(index, 1)[0]);
+      }
+      return selected;
+    }
+
+    // 現在の問題をセットする
+    function setCurrentWord() {
+      currentWord = questionList[questionIndex];
+      currentInput = "";
+      questionStartTime = Date.now();
+      wordY = 0; // 落下位置初期化
+    }
+
+    // ヘルパー関数：指定幅でテキストを折り返す（各行の文字列と文字インデックス範囲を返す）
+    function getWrappedLines(ctx, text, maxWidth) {
+      const lines = [];
+      let lineStart = 0;
+      let line = "";
+      for (let i = 0; i < text.length; i++) {
+        let testLine = line + text[i];
+        if (ctx.measureText(testLine).width > maxWidth && line !== "") {
+          lines.push({ text: line, start: lineStart, end: i });
+          line = text[i];
+          lineStart = i;
+        } else {
+          line = testLine;
+        }
+      }
+      lines.push({ text: line, start: lineStart, end: text.length });
+      return lines;
+    }
+
+    // ゲームループ（更新＆描画）
+    function gameLoop() {
+      update();
+      draw();
+      if (!gameFinished) {
+        requestAnimationFrame(gameLoop);
+      }
+    }
+
+    // 更新処理：問題の落下
+    function update() {
+      wordY += fallSpeed;
+      if (wordY > CANVAS_HEIGHT) {
+        mistakeCount++;
+        questionIndex++;
+        if (questionIndex >= 20) {
+          finishGame();
+        } else {
+          setCurrentWord();
+        }
+      }
+    }
+
+    // 描画処理
+    function draw() {
+      ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      
+      // 左側：ゲームエリア背景
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, GAME_WIDTH, CANVAS_HEIGHT);
+      // 右側：情報エリア背景
+      ctx.fillStyle = "#222";
+      ctx.fillRect(GAME_WIDTH, 0, INFO_WIDTH, CANVAS_HEIGHT);
+      
+      if (!gameFinished) {
+        // 落下中の問題（折り返し対応）
+        ctx.font = "24px 'Press Start 2P'";
+        const lines = getWrappedLines(ctx, currentWord, GAME_WIDTH);
+        const lineHeight = 30; // 行間
+        const typedCount = currentInput.length;
+        for (let i = 0; i < lines.length; i++) {
+          const lineObj = lines[i];
+          const lineText = lineObj.text;
+          const x = (GAME_WIDTH - ctx.measureText(lineText).width) / 2;
+          const y = wordY + i * lineHeight;
+          let typedPart = "";
+          let remainingPart = "";
+          if (typedCount <= lineObj.start) {
+            remainingPart = lineText;
+          } else if (typedCount >= lineObj.end) {
+            typedPart = lineText;
+          } else {
+            const splitIndex = typedCount - lineObj.start;
+            typedPart = lineText.substring(0, splitIndex);
+            remainingPart = lineText.substring(splitIndex);
+          }
+          ctx.fillStyle = "lime";
+          ctx.fillText(typedPart, x, y);
+          const typedWidth = ctx.measureText(typedPart).width;
+          ctx.fillStyle = "white";
+          ctx.fillText(remainingPart, x + typedWidth, y);
+        }
+        
+        // 右側 情報エリア（1行表示、タイトルラベルは黄色、数値は白）
+        ctx.font = "14px 'Press Start 2P'";
+        let infoX = GAME_WIDTH + 10;
+        let lineY = 30;
+        
+        // Q
+        ctx.fillStyle = "yellow";
+        const qLabel = "Q: ";
+        ctx.fillText(qLabel, infoX, lineY);
+        ctx.fillStyle = "white";
+        ctx.fillText((questionIndex + 1) + "/20", infoX + ctx.measureText(qLabel).width, lineY);
+        
+        // Time
+        lineY += 30;
+        ctx.fillStyle = "yellow";
+        const timeLabel = "Time: ";
+        ctx.fillText(timeLabel, infoX, lineY);
+        ctx.fillStyle = "white";
+        const elapsedTime = ((Date.now() - gameStartTime) / 1000).toFixed(2) + "s";
+        ctx.fillText(elapsedTime, infoX + ctx.measureText(timeLabel).width, lineY);
+        
+        // Bonus
+        lineY += 30;
+        ctx.fillStyle = "yellow";
+        const bonusLabel = "Bonus: ";
+        ctx.fillText(bonusLabel, infoX, lineY);
+        ctx.fillStyle = "white";
+        ctx.fillText(bonusSum, infoX + ctx.measureText(bonusLabel).width, lineY);
+        
+        // Miss
+        lineY += 30;
+        ctx.fillStyle = "yellow";
+        const missLabel = "Miss: ";
+        ctx.fillText(missLabel, infoX, lineY);
+        ctx.fillStyle = "white";
+        ctx.fillText(mistakeCount, infoX + ctx.measureText(missLabel).width, lineY);
+      } 
+      else {
+        // ゲーム終了時：オーバーレイ表示
+        ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        
+        ctx.fillStyle = "yellow";
+        ctx.font = "40px 'Press Start 2P'";
+        ctx.fillText("COMPLETE", CANVAS_WIDTH / 2, (CANVAS_HEIGHT / 2) - 50);
+        
+        ctx.font = "30px 'Press Start 2P'";
+        ctx.fillText("Score: " + finalScore, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+        
+        ctx.textAlign = "start";
+        ctx.textBaseline = "alphabetic";
+      }
+    }
+
+    // ゲーム終了時のスコア計算（満点100000点版）
+    function finishGame() {
+      gameFinished = true;
+      const endTime = Date.now();
+      const totalTimeSec = (endTime - gameStartTime) / 1000;
+      // 新スコア式：各項目を100倍して調整
+      let score = Math.round(100000 - (totalTimeSec * 1000) - (mistakeCount * 2000) + (bonusSum * 100));
+      score = Math.max(0, Math.min(100000, score));
+      finalScore = score;
+      // TOPボタン表示
+      document.getElementById("topButton").style.display = "block";
+    }
+
+    // キー入力処理
+    document.addEventListener("keydown", (e) => {
+      if (!gameStarted || gameFinished) return;
+      if (e.key === "Backspace") {
+        e.preventDefault();
+        currentInput = currentInput.slice(0, -1);
+      } else if (e.key.length === 1) {
+        if (currentWord[currentInput.length].toLowerCase() === e.key.toLowerCase()) {
+          currentInput += e.key;
+          if (currentInput === currentWord) {
+            const questionTime = (Date.now() - questionStartTime) / 1000;
+            const questionBonus = Math.max(0, Math.round((3 - questionTime) * 10));
+            bonusSum += questionBonus;
+            questionIndex++;
+            if (questionIndex >= 20) {
+              finishGame();
+            } else {
+              setCurrentWord();
+            }
+          }
+        } else {
+          mistakeCount++;
+        }
+      }
+    });
+
+    // TOPボタン処理：タイトル画面へ戻る
+    document.getElementById("topButton").addEventListener("click", () => {
+      gameStarted = false;
+      gameFinished = false;
+      questionList = [];
+      questionIndex = 0;
+      currentWord = "";
+      currentInput = "";
+      bonusSum = 0;
+      mistakeCount = 0;
+      finalScore = 0;
+      document.getElementById("titleScreen").style.display = "flex";
+      document.getElementById("topButton").style.display = "none";
+      draw();
+    });
+
+    // STARTボタン処理
+    document.getElementById("startButton").addEventListener("click", () => {
+      difficultyLevel = parseInt(document.getElementById("levelSelect").value);
+      const fullList = wordLists[difficultyLevel];
+      questionList = selectQuestions(fullList);
+      questionIndex = 0;
+      bonusSum = 0;
+      mistakeCount = 0;
+      finalScore = 0;
+      gameFinished = false;
+      // ※落下速度はここでは固定1に設定（必要なら調整）
+      fallSpeed = 1;
+      gameStartTime = Date.now();
+      gameStarted = true;
+      document.getElementById("titleScreen").style.display = "none";
+      document.getElementById("topButton").style.display = "none";
+      setCurrentWord();
+      requestAnimationFrame(gameLoop);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Othello Game</title>
+  <!-- レトロなフォント「Press Start 2P」を使用 -->
+  <link href="https://fonts.googleapis.com/css?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    /* 全体背景の設定 */
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #1c1c1c, #555);
+      font-family: 'Press Start 2P', cursive;
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    /* ゲームコンテナ（600×650px） */
+    #gameContainer {
+      position: relative;
+      height: 650px;
+      background-color: #000;
+      box-shadow: 0 0 20px rgba(0,0,0,0.8);
+    }
+    /* 盤面描画用キャンバス：サイズは8×60px＋スコアエリア40px＝520px */
+    #gameCanvas {
+      display: block;
+      background-color: #000;
+    }
+    /* タイトル画面オーバーレイ */
+    #titleScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+    }
+    #titleScreen h1 {
+      font-size: 48px;
+      margin-bottom: 40px;
+    }
+    /* ボタン共通（START, RESET） */
+    #startButton {
+      padding: 10px 20px;
+      font-size: 24px;
+      font-family: 'Press Start 2P', cursive;
+      background: linear-gradient(135deg, #f06, #f79);
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 5px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      transition: transform 0.2s;
+    }
+    #startButton:hover {
+      transform: scale(1.05);
+    }
+    /* 下部リセットボタン */
+    #resetButton {
+      padding: 10px 20px;
+      font-size: 15px;
+      font-family: 'Press Start 2P', cursive;
+      background: linear-gradient(135deg, #f06, #f79);
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 5px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      transition: transform 0.2s;
+    }
+    /* リセットボタンコンテナ */
+    #controlPanel {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 50px;
+      background-color: #1c1c1c;
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <!-- 盤面描画用キャンバス -->
+    <canvas id="gameCanvas" width="480" height="520"></canvas>
+    <!-- 下部のコントロールパネル（リセットボタン） -->
+    <div id="controlPanel">
+      <button id="resetButton">RESET</button>
+    </div>
+    <!-- タイトル画面オーバーレイ -->
+    <div id="titleScreen">
+      <h1>OTHELLO</h1>
+      <button id="startButton">START</button>
+    </div>
+  </div>
+
+  <script>
+    // 定数定義
+    const SIZE = 8;                      // 盤面サイズ：8×8
+    const CELL_SIZE = 60;                // 各セルのサイズ（60px）
+    const OFFSET_Y = 40;                 // スコア表示エリアの高さ
+    const CANVAS_WIDTH = SIZE * CELL_SIZE;             // 480px
+    const CANVAS_HEIGHT = SIZE * CELL_SIZE + OFFSET_Y;   // 480+40=520px
+
+    // ゲーム状態の管理
+    let board = [];
+    let currentPlayer = 1;               // 1: 黒, 2: 白
+    let gameEnded = false;
+    let gameResultMessage = "";
+
+    // キャンバスと描画コンテキストの取得
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // 各種UI要素の取得
+    const titleScreen = document.getElementById("titleScreen");
+    const startButton = document.getElementById("startButton");
+    const resetButton = document.getElementById("resetButton");
+    const controlPanel = document.getElementById("controlPanel");
+
+    // ゲーム初期化（リセット）処理
+    function resetGame() {
+      // 盤面を0で初期化
+      board = new Array(SIZE);
+      for (let i = 0; i < SIZE; i++) {
+        board[i] = new Array(SIZE).fill(0);
+      }
+      // 初期石配置
+      board[3][3] = 2;
+      board[4][4] = 2;
+      board[3][4] = 1;
+      board[4][3] = 1;
+      currentPlayer = 1;
+      gameEnded = false;
+      gameResultMessage = "";
+      drawBoard();
+    }
+
+    // キャンバスクリック時の処理
+    canvas.addEventListener("click", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      // クリックがスコア表示エリア内の場合は無視
+      if (clickY < OFFSET_Y) return;
+      // ゲーム終了中の場合は再描画のみ行う
+      if (gameEnded) {
+        gameEnded = false;
+        drawBoard();
+        return;
+      }
+      // クリック位置からセル座標を計算
+      const x = Math.floor(clickX / CELL_SIZE);
+      const y = Math.floor((clickY - OFFSET_Y) / CELL_SIZE);
+      if (isValidMove(x, y, currentPlayer)) {
+        makeMove(x, y, currentPlayer);
+        switchPlayer();
+        drawBoard();
+      }
+    });
+
+    // 手の有効性を判定する
+    function isValidMove(x, y, player) {
+      if (x < 0 || x >= SIZE || y < 0 || y >= SIZE || board[x][y] !== 0) return false;
+      const opponent = (player === 1) ? 2 : 1;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          if (dx === 0 && dy === 0) continue;
+          let nx = x + dx, ny = y + dy;
+          let hasOpponent = false;
+          while (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE) {
+            if (board[nx][ny] === opponent) {
+              hasOpponent = true;
+            } else if (board[nx][ny] === player) {
+              if (hasOpponent) return true;
+              break;
+            } else {
+              break;
+            }
+            nx += dx;
+            ny += dy;
+          }
+        }
+      }
+      return false;
+    }
+
+    // 石を配置し、反転処理を行う
+    function makeMove(x, y, player) {
+      board[x][y] = player;
+      const opponent = (player === 1) ? 2 : 1;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          if (dx === 0 && dy === 0) continue;
+          let nx = x + dx, ny = y + dy;
+          let path = [];
+          while (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE) {
+            if (board[nx][ny] === opponent) {
+              path.push({x: nx, y: ny});
+            } else if (board[nx][ny] === player) {
+              if (path.length > 0) {
+                // 石の反転
+                for (let pos of path) {
+                  board[pos.x][pos.y] = player;
+                }
+              }
+              break;
+            } else {
+              break;
+            }
+            nx += dx;
+            ny += dy;
+          }
+        }
+      }
+    }
+
+    // プレイヤーを切り替え、置ける手がなければゲーム終了
+    function switchPlayer() {
+      currentPlayer = (currentPlayer === 1) ? 2 : 1;
+      if (!hasValidMove(currentPlayer)) {
+        // 相手に手がなければターンを戻す
+        currentPlayer = (currentPlayer === 1) ? 2 : 1;
+        if (!hasValidMove(currentPlayer)) {
+          // 両者とも手がなければゲーム終了
+          gameEnded = true;
+          const blackCount = countStones(1);
+          const whiteCount = countStones(2);
+          if (blackCount > whiteCount) {
+            gameResultMessage = "ゲーム終了: 黒の勝ち";
+          } else if (whiteCount > blackCount) {
+            gameResultMessage = "ゲーム終了: 白の勝ち";
+          } else {
+            gameResultMessage = "ゲーム終了: 引き分け";
+          }
+        }
+      }
+    }
+
+    // 指定プレイヤーの石の数をカウントする
+    function countStones(player) {
+      let count = 0;
+      for (let i = 0; i < SIZE; i++) {
+        for (let j = 0; j < SIZE; j++) {
+          if (board[i][j] === player) count++;
+        }
+      }
+      return count;
+    }
+
+    // 指定プレイヤーが一手でも打てるか確認する
+    function hasValidMove(player) {
+      for (let i = 0; i < SIZE; i++) {
+        for (let j = 0; j < SIZE; j++) {
+          if (isValidMove(i, j, player)) return true;
+        }
+      }
+      return false;
+    }
+
+    // 盤面を描画する
+    function drawBoard() {
+      // キャンバス全体をクリア
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // スコア表示エリア（上部）の描画
+      ctx.fillStyle = "rgb(34,139,34)";
+      ctx.fillRect(0, 0, CANVAS_WIDTH, OFFSET_Y);
+      
+      const blackCount = countStones(1);
+      const whiteCount = countStones(2);
+      ctx.fillStyle = "black";
+      ctx.font = "20px 'Press Start 2P'";
+      ctx.fillText("黒: " + blackCount, 20, 30);
+      ctx.fillStyle = "white";
+      ctx.fillText("白: " + whiteCount, 150, 30);
+      
+      // 盤面背景の描画
+      ctx.fillStyle = "rgb(0,100,0)";
+      ctx.fillRect(0, OFFSET_Y, CANVAS_WIDTH, SIZE * CELL_SIZE);
+      
+      // グリッドの描画
+      ctx.strokeStyle = "black";
+      for (let i = 0; i <= SIZE; i++) {
+        // 縦線
+        ctx.beginPath();
+        ctx.moveTo(i * CELL_SIZE, OFFSET_Y);
+        ctx.lineTo(i * CELL_SIZE, OFFSET_Y + SIZE * CELL_SIZE);
+        ctx.stroke();
+        // 横線
+        ctx.beginPath();
+        ctx.moveTo(0, OFFSET_Y + i * CELL_SIZE);
+        ctx.lineTo(CANVAS_WIDTH, OFFSET_Y + i * CELL_SIZE);
+        ctx.stroke();
+      }
+      
+      // 各セルの描画
+      for (let i = 0; i < SIZE; i++) {
+        for (let j = 0; j < SIZE; j++) {
+          const cellX = i * CELL_SIZE;
+          const cellY = j * CELL_SIZE + OFFSET_Y;
+          if (board[i][j] === 1) {
+            // 黒石の描画
+            ctx.fillStyle = "darkgray";
+            ctx.beginPath();
+            ctx.arc(cellX + 10 + (CELL_SIZE - 20) / 2, cellY + 10 + (CELL_SIZE - 20) / 2, (CELL_SIZE - 20) / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "black";
+            ctx.beginPath();
+            ctx.arc(cellX + 8 + (CELL_SIZE - 20) / 2, cellY + 8 + (CELL_SIZE - 20) / 2, (CELL_SIZE - 20) / 2, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (board[i][j] === 2) {
+            // 白石の描画
+            ctx.fillStyle = "lightgray";
+            ctx.beginPath();
+            ctx.arc(cellX + 10 + (CELL_SIZE - 20) / 2, cellY + 10 + (CELL_SIZE - 20) / 2, (CELL_SIZE - 20) / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "white";
+            ctx.beginPath();
+            ctx.arc(cellX + 8 + (CELL_SIZE - 20) / 2, cellY + 8 + (CELL_SIZE - 20) / 2, (CELL_SIZE - 20) / 2, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (isValidMove(i, j, currentPlayer)) {
+            // 有効な手のハイライト（半透明グリーン）
+            ctx.fillStyle = "rgba(0,255,0,0.4)";
+            ctx.beginPath();
+            ctx.arc(cellX + 20 + (CELL_SIZE - 40) / 2, cellY + 20 + (CELL_SIZE - 40) / 2, (CELL_SIZE - 40) / 2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+      
+      // ゲーム終了時のオーバーレイ表示
+      if (gameEnded) {
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillRect(0, OFFSET_Y, CANVAS_WIDTH, SIZE * CELL_SIZE);
+        ctx.fillStyle = "white";
+        ctx.font = "30px 'Press Start 2P'";
+        const textWidth = ctx.measureText(gameResultMessage).width;
+        const textX = (CANVAS_WIDTH - textWidth) / 2;
+        const textY = (SIZE * CELL_SIZE + OFFSET_Y) / 2;
+        ctx.fillText(gameResultMessage, textX, textY);
+      }
+    }
+
+    // STARTボタン押下でタイトル画面を非表示にし、ゲームを開始
+    startButton.addEventListener("click", () => {
+      titleScreen.style.display = "none";
+      controlPanel.style.display = "flex";
+      resetGame();
+    });
+    // リセットボタン押下でゲームをリセット
+    resetButton.addEventListener("click", () => {
+      resetGame();
+    });
+  </script>
+</body>
+</html>

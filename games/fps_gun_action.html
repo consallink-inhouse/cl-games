@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>Maze FPS Game with Human Enemies & Gunfire (Game Clear)</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+    /* マウスロック前の案内 */
+    #blocker {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+    }
+    #instructions {
+      font-family: Arial, sans-serif;
+      font-size: 36px;
+      color: #fff;
+      text-align: center;
+      cursor: pointer;
+    }
+    /* ゲームクリア／ゲームオーバー表示 */
+    #gameClearMessage, #gameOverMessage {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: Arial, sans-serif;
+      font-size: 48px;
+      display: none;
+      z-index: 3;
+    }
+    #gameClearMessage { color: #00ff00; }
+    #gameOverMessage { color: red; }
+    /* プレイヤー体力表示（ハートマーク） */
+    #lifeDisplay {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-family: Arial, sans-serif;
+      font-size: 24px;
+      color: #fff;
+      z-index: 2;
+    }
+    /* DASH ボタン（画面右下） */
+    #dashButton {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      font-family: Arial, sans-serif;
+      font-size: 24px;
+      padding: 10px 20px;
+      z-index: 2;
+      opacity: 0.7;
+    }
+    /* マップ表示用 canvas（左上） */
+    #mapCanvas {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      border: 2px solid black;
+      background: rgba(255,255,255,0.8);
+      display: none;
+      z-index: 3;
+    }
+  </style>
+</head>
+<body>
+  <!-- マウスロック開始用 -->
+  <div id="blocker">
+    <div id="instructions">
+      クリックしてスタート<br>
+      WASD：移動　スペース：ジャンプ　Ctrl：しゃがむ<br>
+      マウス：視点操作　Q：マップ表示
+    </div>
+  </div>
+  <!-- ゲームクリア／ゲームオーバー表示 -->
+  <div id="gameClearMessage">GAME CLEAR!</div>
+  <div id="gameOverMessage">GAME OVER</div>
+  <!-- プレイヤー体力表示 -->
+  <div id="lifeDisplay"></div>
+  <!-- DASH ボタン -->
+  <button id="dashButton">DASH</button>
+  <!-- マップ表示用 canvas -->
+  <canvas id="mapCanvas" width="300" height="300"></canvas>
+
+  <!-- three.js と PointerLockControls の読み込み -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+  <script>
+    // 迷路生成アルゴリズム（再帰的バックトラッキング）
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+    // 奇数サイズの行・列で迷路を生成
+    function generateMaze(rows, cols) {
+      const maze = [];
+      for (let i = 0; i < rows; i++) {
+        maze[i] = [];
+        for (let j = 0; j < cols; j++) {
+          maze[i][j] = 1;
+        }
+      }
+      function carve(x, y) {
+        const directions = shuffle([[0, 2], [0, -2], [2, 0], [-2, 0]]);
+        for (let d of directions) {
+          const nx = x + d[0];
+          const ny = y + d[1];
+          if (ny > 0 && ny < rows && nx > 0 && nx < cols && maze[ny][nx] === 1) {
+            maze[y + d[1] / 2][x + d[0] / 2] = 0;
+            maze[ny][nx] = 0;
+            carve(nx, ny);
+          }
+        }
+      }
+      maze[1][1] = 0;
+      carve(1, 1);
+      return maze;
+    }
+    // 迷路の設定
+    const mazeRows = 21;
+    const mazeCols = 21;
+    const maze = generateMaze(mazeRows, mazeCols);
+    const cellSize = 50;
+    const mazeWidth = mazeCols * cellSize;
+    const mazeHeight = mazeRows * cellSize;
+    // 座標計算：迷路セル番号からシーン上の座標（迷路中央を原点とする）
+    function getCellCenter(row, col) {
+      const x = col * cellSize + cellSize/2 - mazeWidth/2;
+      const z = row * cellSize + cellSize/2 - mazeHeight/2;
+      return { x, z };
+    }
+
+    let camera, scene, renderer, controls;
+    let mazeWalls = [];
+    let prevPosition = new THREE.Vector3();
+
+    // 移動制御
+    let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+    let canJump = false;
+    let prevTime = performance.now();
+    let velocity = new THREE.Vector3();
+    let direction = new THREE.Vector3();
+    const gravity = 9.8 * 100;
+    const dashMultiplier = 2;
+    let isDashing = false, isCrouching = false;
+    const standingHeight = cellSize * 0.5;
+    const crouchHeight = cellSize * 0.3;
+
+    // マップ表示用
+    let showMap = false;
+    const mapCanvas = document.getElementById('mapCanvas');
+    const mapCtx = mapCanvas.getContext('2d');
+
+    // 敵・弾丸管理
+    let enemies = [];
+    let playerBullets = [];
+    let enemyBullets = [];
+
+    // プレイヤー体力とゲーム状態
+    let playerLife = 10;
+    let gameOver = false;
+
+    // 弾丸の定数
+    const playerBulletSpeed = 1000;
+    const enemyBulletSpeed = 500;
+    const playerBulletLifetime = 2;
+    const enemyBulletLifetime = 3;
+
+    init();
+    animate();
+
+    function init() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x87ceeb);
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 1, 3000);
+      renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // PointerLockControls の設定
+      controls = new THREE.PointerLockControls(camera, document.body);
+      scene.add(controls.getObject());
+      const blocker = document.getElementById('blocker');
+      const instructions = document.getElementById('instructions');
+      instructions.addEventListener('click', () => { controls.lock(); }, false);
+      controls.addEventListener('lock', () => { blocker.style.display = 'none'; });
+      controls.addEventListener('unlock', () => { blocker.style.display = 'flex'; });
+
+      // 床の作成（迷路全体を覆う）
+      const floorGeometry = new THREE.PlaneGeometry(mazeWidth, mazeHeight, 10, 10);
+      const floorMaterial = new THREE.MeshBasicMaterial({ color: 0x888888 });
+      const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+      floor.rotation.x = -Math.PI/2;
+      scene.add(floor);
+
+      // 壁（障害物）の生成
+      // 境界は必ず配置、内部は 30% の確率で配置
+      const wallMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
+      for (let i = 0; i < mazeRows; i++) {
+        for (let j = 0; j < mazeCols; j++) {
+          if (maze[i][j] === 1) {
+            if (i === 0 || i === mazeRows-1 || j === 0 || j === mazeCols-1) {
+              const wallGeometry = new THREE.BoxGeometry(cellSize*0.9, cellSize, cellSize*0.9);
+              const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+              const center = getCellCenter(i, j);
+              wall.position.set(center.x, cellSize/2, center.z);
+              scene.add(wall);
+              mazeWalls.push(wall);
+            } else {
+              if (Math.random() < 0.3) {
+                const wallGeometry = new THREE.BoxGeometry(cellSize*0.9, cellSize, cellSize*0.9);
+                const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+                const center = getCellCenter(i, j);
+                wall.position.set(center.x, cellSize/2, center.z);
+                scene.add(wall);
+                mazeWalls.push(wall);
+              }
+            }
+          }
+        }
+      }
+
+      // 照明
+      const light = new THREE.DirectionalLight(0xffffff, 1.0);
+      light.position.set(100, 200, 100);
+      scene.add(light);
+      const ambientLight = new THREE.AmbientLight(0x404040);
+      scene.add(ambientLight);
+
+      // プレイヤーの初期位置（START セル：1,1）
+      const startCenter = getCellCenter(1, 1);
+      controls.getObject().position.set(startCenter.x, standingHeight, startCenter.z);
+
+      // キーボードイベントの登録
+      document.addEventListener('keydown', onKeyDown, false);
+      document.addEventListener('keyup', onKeyUp, false);
+      window.addEventListener('resize', onWindowResize, false);
+
+      // DASH ボタン設定
+      const dashButton = document.getElementById('dashButton');
+      dashButton.addEventListener('mousedown', () => { isDashing = true; });
+      dashButton.addEventListener('mouseup', () => { isDashing = false; });
+      dashButton.addEventListener('touchstart', (e) => { isDashing = true; e.preventDefault(); });
+      dashButton.addEventListener('touchend', (e) => { isDashing = false; e.preventDefault(); });
+
+      // プレイヤー発射イベント
+      document.addEventListener('mousedown', onShoot, false);
+
+      // 体力表示（ハートマーク）の初期化
+      updateLifeDisplay();
+
+      // 敵の配置（迷路内の空いているセルからランダムに5匹配置）
+      for (let count = 0; count < 5; count++) {
+        let placed = false;
+        while (!placed) {
+          const row = Math.floor(Math.random() * (mazeRows - 2)) + 1;
+          const col = Math.floor(Math.random() * (mazeCols - 2)) + 1;
+          if (maze[row][col] === 0) {
+            if (!(row === 1 && col === 1)) {
+              const center = getCellCenter(row, col);
+              createEnemy(center.x, center.z);
+              placed = true;
+            }
+          }
+        }
+      }
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function onKeyDown(event) {
+      switch(event.code) {
+        case 'ArrowUp':
+        case 'KeyW': moveForward = true; break;
+        // AキーとDキーの動作を逆にする（矢印キーはそのまま）
+        case 'ArrowLeft': 
+          moveLeft = true; break;
+        case 'KeyA': // Aキーで右移動
+          moveRight = true; break;
+        case 'ArrowDown':
+        case 'KeyS': moveBackward = true; break;
+        case 'ArrowRight': 
+          moveRight = true; break;
+        case 'KeyD': // Dキーで左移動
+          moveLeft = true; break;
+        case 'Space':
+          if (canJump) velocity.y += 225;
+          canJump = false;
+          break;
+        case 'ShiftLeft':
+        case 'ShiftRight': isDashing = true; break;
+        case 'ControlLeft':
+        case 'ControlRight': isCrouching = true; break;
+        case 'KeyQ':
+          if (!event.repeat) {
+            showMap = !showMap;
+            mapCanvas.style.display = showMap ? 'block' : 'none';
+          }
+          break;
+      }
+    }
+
+    function onKeyUp(event) {
+      switch(event.code) {
+        case 'ArrowUp':
+        case 'KeyW': moveForward = false; break;
+        case 'ArrowLeft': 
+          moveLeft = false; break;
+        case 'KeyA': // Aキー解除で右移動解除
+          moveRight = false; break;
+        case 'ArrowDown':
+        case 'KeyS': moveBackward = false; break;
+        case 'ArrowRight': 
+          moveRight = false; break;
+        case 'KeyD': // Dキー解除で左移動解除
+          moveLeft = false; break;
+        case 'ShiftLeft':
+        case 'ShiftRight': isDashing = false; break;
+        case 'ControlLeft':
+        case 'ControlRight': isCrouching = false; break;
+      }
+    }
+
+    // 敵キャラクターの生成（人型：正面が赤、背面が青）
+    function createEnemy(x, z) {
+      const enemyGroup = new THREE.Group();
+      // ボディ：BoxGeometry（面ごとに異なるマテリアル）
+      const bodyGeometry = new THREE.BoxGeometry(cellSize*0.4, cellSize*0.6, cellSize*0.2);
+      // 面の順番: +X, -X, +Y, -Y, +Z, -Z
+      const materials = [
+        new THREE.MeshLambertMaterial({ color: 0xaaaaaa }), // +X
+        new THREE.MeshLambertMaterial({ color: 0xaaaaaa }), // -X
+        new THREE.MeshLambertMaterial({ color: 0xaaaaaa }), // +Y
+        new THREE.MeshLambertMaterial({ color: 0xaaaaaa }), // -Y
+        new THREE.MeshLambertMaterial({ color: 0xff0000 }), // +Z → 正面：赤
+        new THREE.MeshLambertMaterial({ color: 0x0000ff })  // -Z → 背面：青
+      ];
+      const body = new THREE.Mesh(bodyGeometry, materials);
+      body.position.y = cellSize*0.3;
+      enemyGroup.add(body);
+      // 頭部
+      const headGeometry = new THREE.SphereGeometry(cellSize*0.15, 16, 16);
+      const headMaterial = new THREE.MeshLambertMaterial({ color: 0xffcc99 });
+      const head = new THREE.Mesh(headGeometry, headMaterial);
+      head.position.y = cellSize*0.6 + cellSize*0.15;
+      enemyGroup.add(head);
+      enemyGroup.position.set(x, 0, z);
+      // 敵全体の当たり判定用半径を縮小（以前40→30）
+      enemyGroup.collisionRadius = 30;
+      enemyGroup.lastShotTime = 0;
+      enemyGroup.shootCooldown = 3000; // 3秒間隔
+      scene.add(enemyGroup);
+      enemies.push(enemyGroup);
+    }
+
+    // 敵の更新（プレイヤー追尾＆射撃＋壁との衝突判定）
+    function updateEnemies(delta) {
+      enemies.forEach(enemy => {
+        const oldPos = enemy.position.clone();
+        const dirToPlayer = new THREE.Vector3();
+        dirToPlayer.subVectors(controls.getObject().position, enemy.position);
+        dirToPlayer.y = 0;
+        if (dirToPlayer.length() > 1) {
+          dirToPlayer.normalize();
+          // 移動速度を delta*30 に減速
+          enemy.position.add(dirToPlayer.multiplyScalar(delta * 30));
+          // 壁との衝突判定（単純な矩形判定）
+          for (let wall of mazeWalls) {
+            let dx = Math.abs(enemy.position.x - wall.position.x);
+            let dz = Math.abs(enemy.position.z - wall.position.z);
+            let threshold = cellSize/2 + 5; // 調整値
+            if (dx < threshold && dz < threshold) {
+              enemy.position.copy(oldPos);
+              break;
+            }
+          }
+        }
+        // 射撃
+        if (performance.now() - enemy.lastShotTime > enemy.shootCooldown) {
+          enemy.lastShotTime = performance.now();
+          shootEnemyBullet(enemy);
+        }
+      });
+    }
+
+    // 敵弾の生成
+    function shootEnemyBullet(enemy) {
+      const bulletGeometry = new THREE.SphereGeometry(2, 8, 8);
+      const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+      const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+      bullet.position.copy(enemy.position);
+      const direction = new THREE.Vector3();
+      direction.subVectors(controls.getObject().position, enemy.position).normalize();
+      bullet.velocity = direction.multiplyScalar(enemyBulletSpeed);
+      bullet.lifetime = enemyBulletLifetime;
+      enemyBullets.push(bullet);
+      scene.add(bullet);
+    }
+
+    // マズルフラッシュ（プレイヤー発射時のエフェクト）
+    function createMuzzleFlash() {
+      const flashGeometry = new THREE.PlaneGeometry(10, 10);
+      const flashMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 1, side: THREE.DoubleSide });
+      const flash = new THREE.Mesh(flashGeometry, flashMaterial);
+      const flashDistance = 20;
+      const flashPosition = new THREE.Vector3(0, 0, -flashDistance);
+      flashPosition.applyQuaternion(camera.quaternion);
+      flash.position.copy(controls.getObject().position).add(flashPosition);
+      flash.quaternion.copy(camera.quaternion);
+      scene.add(flash);
+      const flashDuration = 100;
+      const flashStart = performance.now();
+      function animateFlash() {
+        const elapsed = performance.now() - flashStart;
+        const progress = elapsed / flashDuration;
+        flash.material.opacity = 1 - progress;
+        if (progress < 1) {
+          requestAnimationFrame(animateFlash);
+        } else {
+          scene.remove(flash);
+        }
+      }
+      animateFlash();
+    }
+
+    // 爆発エフェクト（敵に命中時）
+    function createExplosion(position) {
+      const explosionGeometry = new THREE.SphereGeometry(5, 16, 16);
+      const explosionMaterial = new THREE.MeshBasicMaterial({ color: 0xffa500, transparent: true, opacity: 1 });
+      const explosion = new THREE.Mesh(explosionGeometry, explosionMaterial);
+      explosion.position.copy(position);
+      scene.add(explosion);
+      const explosionDuration = 300;
+      const startTime = performance.now();
+      function animateExplosion() {
+        const elapsed = performance.now() - startTime;
+        const progress = elapsed / explosionDuration;
+        explosion.scale.set(1 + progress * 2, 1 + progress * 2, 1 + progress * 2);
+        explosion.material.opacity = 1 - progress;
+        if (progress < 1) {
+          requestAnimationFrame(animateExplosion);
+        } else {
+          scene.remove(explosion);
+        }
+      }
+      animateExplosion();
+    }
+
+    // プレイヤー発射時の処理（マズルフラッシュ＋弾丸生成）
+    function onShoot(event) {
+      if (controls.isLocked && !gameOver) {
+        createMuzzleFlash();
+        const bulletGeometry = new THREE.SphereGeometry(2, 8, 8);
+        const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+        bullet.position.copy(controls.getObject().position);
+        const direction = new THREE.Vector3();
+        camera.getWorldDirection(direction);
+        bullet.velocity = direction.multiplyScalar(playerBulletSpeed);
+        bullet.lifetime = playerBulletLifetime;
+        playerBullets.push(bullet);
+        scene.add(bullet);
+      }
+    }
+
+    // プレイヤー弾の更新と敵との衝突判定
+    // 追加：各プレイヤー弾について、壁との衝突判定を行い、当たったら削除する
+    function updatePlayerBullets(delta) {
+      for (let i = playerBullets.length - 1; i >= 0; i--) {
+        let bullet = playerBullets[i];
+        bullet.position.add(bullet.velocity.clone().multiplyScalar(delta));
+        bullet.lifetime -= delta;
+        // 壁との衝突判定
+        let hitWall = false;
+        for (let wall of mazeWalls) {
+          let dx = Math.abs(bullet.position.x - wall.position.x);
+          let dz = Math.abs(bullet.position.z - wall.position.z);
+          let threshold = cellSize * 0.45;
+          if (dx < threshold && dz < threshold) {
+            hitWall = true;
+            break;
+          }
+        }
+        if (hitWall) {
+          scene.remove(bullet);
+          playerBullets.splice(i, 1);
+          continue;
+        }
+        // 敵との衝突判定（敵グループの collisionRadius を用いる）
+        for (let j = enemies.length - 1; j >= 0; j--) {
+          let enemy = enemies[j];
+          if (bullet.position.distanceTo(enemy.position) < enemy.collisionRadius) {
+            createExplosion(enemy.position);
+            scene.remove(enemy);
+            enemies.splice(j, 1);
+            scene.remove(bullet);
+            playerBullets.splice(i, 1);
+            break;
+          }
+        }
+        if (bullet.lifetime <= 0) {
+          scene.remove(bullet);
+          playerBullets.splice(i, 1);
+        }
+      }
+    }
+
+    // 敵弾の更新とプレイヤーへの衝突判定（壁との衝突判定を追加、判定半径を15に拡大）
+    function updateEnemyBullets(delta) {
+      for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        let bullet = enemyBullets[i];
+        bullet.position.add(bullet.velocity.clone().multiplyScalar(delta));
+        bullet.lifetime -= delta;
+        // 壁との衝突判定
+        let hitWall = false;
+        for (let wall of mazeWalls) {
+          let dx = Math.abs(bullet.position.x - wall.position.x);
+          let dz = Math.abs(bullet.position.z - wall.position.z);
+          let threshold = cellSize * 0.45;
+          if (dx < threshold && dz < threshold) {
+            hitWall = true;
+            break;
+          }
+        }
+        if (hitWall) {
+          scene.remove(bullet);
+          enemyBullets.splice(i, 1);
+          continue;
+        }
+        // プレイヤーとの衝突判定（半径15）
+        if (bullet.position.distanceTo(controls.getObject().position) < 15) {
+          scene.remove(bullet);
+          enemyBullets.splice(i, 1);
+          playerLife--;
+          updateLifeDisplay();
+          if (playerLife <= 0) {
+            gameOver = true;
+            document.getElementById('gameOverMessage').style.display = 'block';
+          }
+          continue;
+        }
+        if (bullet.lifetime <= 0) {
+          scene.remove(bullet);
+          enemyBullets.splice(i, 1);
+        }
+      }
+    }
+
+    // プレイヤー体力表示（ハートマーク）
+    function updateLifeDisplay() {
+      document.getElementById('lifeDisplay').innerText = "Health: " + "❤️".repeat(playerLife);
+    }
+
+    // マップ描画（障害物は表示せず、プレイヤーと敵の位置のみ表示）
+    function updateMap() {
+      const mapScale = mapCanvas.width / mazeWidth;
+      mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+      // 背景を白で塗りつぶす
+      mapCtx.fillStyle = "white";
+      mapCtx.fillRect(0, 0, mazeWidth * mapScale, mazeHeight * mapScale);
+      // エリア境界の描画（任意）
+      mapCtx.strokeStyle = "black";
+      mapCtx.strokeRect(0, 0, mazeWidth * mapScale, mazeHeight * mapScale);
+      // プレイヤーの位置（青）
+      const playerPos = controls.getObject().position;
+      const playerX = (playerPos.x + mazeWidth/2) * mapScale;
+      const playerY = (playerPos.z + mazeHeight/2) * mapScale;
+      mapCtx.fillStyle = "blue";
+      mapCtx.beginPath();
+      mapCtx.arc(playerX, playerY, 5, 0, 2 * Math.PI);
+      mapCtx.fill();
+      // 敵の位置（赤）だけ表示
+      enemies.forEach(enemy => {
+        const enemyX = (enemy.position.x + mazeWidth/2) * mapScale;
+        const enemyY = (enemy.position.z + mazeHeight/2) * mapScale;
+        mapCtx.fillStyle = "red";
+        mapCtx.beginPath();
+        mapCtx.arc(enemyX, enemyY, 5, 0, 2 * Math.PI);
+        mapCtx.fill();
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (controls.isLocked && !gameOver) {
+        const time = performance.now();
+        const delta = (time - prevTime) / 1000;
+        prevPosition.copy(controls.getObject().position);
+        velocity.x -= velocity.x * 10.0 * delta;
+        velocity.z -= velocity.z * 10.0 * delta;
+        velocity.y -= gravity * delta;
+        direction.z = Number(moveForward) - Number(moveBackward);
+        direction.x = Number(moveRight) - Number(moveLeft);
+        direction.normalize();
+        const speedFactor = isDashing ? dashMultiplier : 1;
+        if (moveForward || moveBackward) velocity.z -= direction.z * 400.0 * delta * speedFactor;
+        if (moveLeft || moveRight) velocity.x -= direction.x * 400.0 * delta * speedFactor;
+        controls.getObject().translateX(velocity.x * delta);
+        controls.getObject().translateY(velocity.y * delta);
+        controls.getObject().translateZ(velocity.z * delta);
+        const targetHeight = isCrouching ? crouchHeight : standingHeight;
+        const playerPos = controls.getObject().position;
+        if (playerPos.y < targetHeight) {
+          velocity.y = 0;
+          playerPos.y = targetHeight;
+          canJump = true;
+        }
+        // プレイヤーと壁の衝突判定（シンプル）
+        const collisionRadius = 2;
+        let collided = false;
+        for (let wall of mazeWalls) {
+          const dx = Math.abs(playerPos.x - wall.position.x);
+          const dz = Math.abs(playerPos.z - wall.position.z);
+          const threshold = cellSize/2 + collisionRadius;
+          if (dx < threshold && dz < threshold) {
+            collided = true;
+            break;
+          }
+        }
+        if (collided) {
+          controls.getObject().position.copy(prevPosition);
+          velocity.x = 0;
+          velocity.z = 0;
+        }
+        updateEnemies(delta);
+        updatePlayerBullets(delta);
+        updateEnemyBullets(delta);
+        prevTime = time;
+        // ゲームクリア判定：すべての敵を倒したら
+        if (enemies.length === 0 && !gameOver) {
+          gameOver = true;
+          document.getElementById('gameClearMessage').style.display = 'block';
+        }
+      }
+      if (showMap) updateMap();
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>GAME CENTER</title>
+  <link href="https://fonts.googleapis.com/css?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
+  <style>
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #1c1c1c, #555);
+      font-family: 'Press Start 2P', cursive;
+      color: #fff;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      text-align: center;
+      padding: 20px;
+      font-size: 36px;
+      border-bottom: 2px solid #fff;
+    }
+    header a {
+      text-decoration: none;
+      color: inherit;
+    }
+    #container {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+    #menu {
+      width: 250px;
+      background-color: #222;
+      padding: 20px;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.5);
+      overflow-y: auto;
+    }
+    #menu ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    #menu li {
+      margin-bottom: 20px;
+    }
+    #menu button {
+      width: 100%;
+      padding: 10px;
+      font-size: 16px;
+      font-family: 'Press Start 2P', cursive;
+      background: linear-gradient(135deg, #f06, #f79);
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 5px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      transition: transform 0.2s;
+    }
+    #menu button:hover {
+      transform: scale(1.05);
+    }
+    #gameFrame {
+      flex-grow: 1;
+      border: none;
+      background: #000;
+      width: 100%;
+      height: 100%;
+    }
+    /* ���̋�����ʌ��� */
+    @media (max-width: 800px) {
+      #container {
+        flex-direction: column;
+      }
+      #menu {
+        width: 100%;
+        display: flex;
+        overflow-x: auto;
+      }
+      #menu li {
+        margin: 10px;
+      }
+      #gameFrame {
+        height: 70vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header><a href="game_center.html">GAME CENTER</a></header>
+  <div id="container">
+    <nav id="menu">
+      <ul>
+        <li><button onclick="loadGame('tetris.html')">Tetris</button></li>
+        <li><button onclick="loadGame('breakout.html')">Block Breaker</button></li>
+        <li><button onclick="loadGame('packman.html')">Pacman</button></li>
+        <li><button onclick="loadGame('othello.html')">Othello</button></li>
+        <li><button onclick="loadGame('15puzzle.html')">15 Puzzle</button></li>
+        <li><button onclick="loadGame('typing.html')">IT Typing</button></li>
+        <li><button onclick="loadGame('fps_sample.html')">FPS Training</button></li>
+        <li><button onclick="loadGame('fps_gun_action.html')">FPS GUN</button></li>
+        <li><button onclick="loadGame('memoryPanel.html')">Memory Panel</button></li>
+        <li><button onclick="loadGame('roulette.html')">Roulette</button></li>
+      </ul>
+    </nav>
+    <iframe id="gameFrame" src=""></iframe>
+  </div>
+  <script>
+    function loadGame(gameFile) {
+      document.getElementById('gameFrame').src = "./games/" + gameFile;
+    }
+  </script>
+</body>
+</html>

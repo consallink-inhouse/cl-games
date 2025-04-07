@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Pacman Game</title>
+  <!-- レトロなフォント「Press Start 2P」を使用 -->
+  <link href="https://fonts.googleapis.com/css?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    /* 全体背景の設定 */
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #1c1c1c, #555);
+      font-family: 'Press Start 2P', cursive;
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    #gameContainer {
+      position: relative;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      border: 2px solid #fff;
+      background-color: #000;
+    }
+
+    /* キャンバスの設定 */
+    canvas {
+      background-color: #000;
+      display: block;
+      border: 2px solid #fff;
+      box-shadow: 0 0 20px rgba(0,0,0,0.8);
+    }
+    /* タイトル画面オーバーレイの設定 */
+    #titleScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    #titleScreen h1 {
+      font-size: 48px;
+      margin-bottom: 40px;
+    }
+    /* ボタン共通のスタイル（transform指定以外） */
+    #startButton, #retryButton {
+      padding: 10px 20px;
+      font-size: 20px;
+      font-family: 'Press Start 2P', cursive;
+      background: linear-gradient(135deg, #f06, #f79);
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 5px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      transition: transform 0.2s;
+    }
+    #startButton:hover, #retryButton:hover {
+      transform: scale(1.05);
+    }
+    /* リトライボタンの位置設定（初期非表示） */
+    #retryButton {
+      position: absolute;
+      top: 50%;
+      left: 30%;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <canvas id="gameCanvas" width="360" height="360"></canvas>
+    <!-- タイトル画面オーバーレイ -->
+    <div id="titleScreen">
+      <h1>PACMAN</h1>
+      <button id="startButton">START</button>
+    </div>
+    <!-- ゲームオーバー／クリア時のリトライボタン -->
+    <button id="retryButton">RETRY</button>
+  </div>
+
+  <script>
+    // 定数設定
+    const TILE_SIZE = 24;
+    const N_TILES = 15;
+    const SCREEN_SIZE = TILE_SIZE * N_TILES; // 360px
+    const PACMAN_SPEED = 6;
+    const GHOST_SPEED = 3;
+    const FPS = 40;
+
+    // パックマンのクラス
+    class Pacman {
+      constructor(startX, startY, speed) {
+        this.startX = startX;
+        this.startY = startY;
+        this.x = startX;
+        this.y = startY;
+        this.dx = 0;
+        this.dy = 0;
+        this.speed = speed;
+      }
+      // 初期位置へリセット
+      resetPosition() {
+        this.x = this.startX;
+        this.y = this.startY;
+        this.dx = 0;
+        this.dy = 0;
+      }
+      // 移動処理
+      move() {
+        this.x += this.dx;
+        this.y += this.dy;
+        if (this.x < 0) this.x = 0;
+        if (this.x > SCREEN_SIZE - TILE_SIZE) this.x = SCREEN_SIZE - TILE_SIZE;
+        if (this.y < 0) this.y = 0;
+        if (this.y > SCREEN_SIZE - TILE_SIZE) this.y = SCREEN_SIZE - TILE_SIZE;
+      }
+      // 移動方向を設定
+      setDirection(dx, dy) {
+        this.dx = dx;
+        this.dy = dy;
+      }
+      // ゴーストとの衝突判定
+      isColliding(ghost) {
+        return Math.abs(this.x - ghost.getX()) < TILE_SIZE &&
+               Math.abs(this.y - ghost.getY()) < TILE_SIZE;
+      }
+      // 描画処理
+      draw(ctx) {
+        ctx.fillStyle = "yellow";
+        ctx.beginPath();
+        const centerX = this.x + TILE_SIZE / 2;
+        const centerY = this.y + TILE_SIZE / 2;
+        const radius = TILE_SIZE / 2;
+        // 30°〜330°のアーク（口が開いた状態）
+        const startAngle = 30 * Math.PI / 180;
+        const endAngle = 330 * Math.PI / 180;
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, startAngle, endAngle, false);
+        ctx.closePath();
+        ctx.fill();
+      }
+      getX() { return this.x; }
+      getY() { return this.y; }
+      getSpeed() { return this.speed; }
+    }
+
+    // ゴーストのクラス
+    class Ghost {
+      constructor(startX, startY, speed) {
+        this.startX = startX;
+        this.startY = startY;
+        this.x = startX;
+        this.y = startY;
+        this.speed = speed;
+      }
+      // 初期位置へリセット
+      resetPosition() {
+        this.x = this.startX;
+        this.y = this.startY;
+      }
+      // パックマンに向かって移動
+      move(targetX, targetY) {
+        if (Math.abs(targetX - this.x) > Math.abs(targetY - this.y)) {
+          this.x += (this.x < targetX) ? this.speed : -this.speed;
+        } else {
+          this.y += (this.y < targetY) ? this.speed : -this.speed;
+        }
+      }
+      // 描画処理
+      draw(ctx) {
+        // ゴースト本体（赤い円）
+        ctx.fillStyle = "red";
+        ctx.beginPath();
+        ctx.arc(this.x + TILE_SIZE/2, this.y + TILE_SIZE/2, TILE_SIZE/2, 0, 2 * Math.PI);
+        ctx.fill();
+        // 目（白い四角形）
+        ctx.fillStyle = "white";
+        ctx.fillRect(this.x + 6, this.y + 6, 6, 6);
+        ctx.fillRect(this.x + 14, this.y + 6, 6, 6);
+      }
+      getX() { return this.x; }
+      getY() { return this.y; }
+    }
+
+    // PacmanGameクラス：ゲームの進行、描画、衝突判定などを管理
+    class PacmanGame {
+      constructor() {
+        this.canvas = document.getElementById("gameCanvas");
+        this.ctx = this.canvas.getContext("2d");
+        this.retryButton = document.getElementById("retryButton");
+        this.pacman = new Pacman(SCREEN_SIZE / 2, SCREEN_SIZE / 2, PACMAN_SPEED);
+        this.ghost = new Ghost(TILE_SIZE, TILE_SIZE, GHOST_SPEED);
+        this.inGame = true;
+        this.isGameClear = false;
+        this.score = 0;
+        this.totalDots = N_TILES * N_TILES;
+        // 各マスにドット（true）を配置
+        this.dots = [];
+        for (let i = 0; i < N_TILES; i++) {
+          this.dots[i] = [];
+          for (let j = 0; j < N_TILES; j++) {
+            this.dots[i][j] = true;
+          }
+        }
+        this.timer = null;
+        this.setupKeyListener();
+        this.retryButton.addEventListener("click", () => this.restartGame());
+        this.start();
+      }
+      // ゲーム開始（定期更新）
+      start() {
+        const interval = 1000 / FPS;
+        this.timer = setInterval(() => {
+          this.update();
+          this.draw();
+        }, interval);
+      }
+      // 更新処理
+      update() {
+        if (this.inGame && !this.isGameClear) {
+          this.pacman.move();
+          this.ghost.move(this.pacman.getX(), this.pacman.getY());
+          this.checkCollisions();
+        }
+      }
+      // 衝突判定とドット取得処理
+      checkCollisions() {
+        // パックマンの位置からマス番号を計算
+        const col = Math.floor(this.pacman.getX() / TILE_SIZE);
+        const row = Math.floor(this.pacman.getY() / TILE_SIZE);
+        if (col >= 0 && col < N_TILES && row >= 0 && row < N_TILES) {
+          if (this.dots[col][row]) {
+            this.dots[col][row] = false;
+            this.score++;
+          }
+        }
+        // 全ドット取得でゲームクリア
+        if (this.score === this.totalDots) {
+          this.isGameClear = true;
+          this.inGame = false;
+          clearInterval(this.timer);
+          this.retryButton.style.display = "block";
+        }
+        // ゴーストとの衝突でゲームオーバー
+        if (this.pacman.isColliding(this.ghost)) {
+          this.inGame = false;
+          this.isGameClear = false;
+          clearInterval(this.timer);
+          this.retryButton.style.display = "block";
+        }
+      }
+      // 描画処理
+      draw() {
+        // 画面全体を黒で塗りつぶし
+        this.ctx.fillStyle = "black";
+        this.ctx.fillRect(0, 0, SCREEN_SIZE, SCREEN_SIZE);
+        // 迷路内のドット描画
+        this.ctx.fillStyle = "yellow";
+        for (let i = 0; i < N_TILES; i++) {
+          for (let j = 0; j < N_TILES; j++) {
+            if (this.dots[i][j]) {
+              this.ctx.beginPath();
+              this.ctx.arc(i * TILE_SIZE + 10, j * TILE_SIZE + 10, 2, 0, 2 * Math.PI);
+              this.ctx.fill();
+            }
+          }
+        }
+        // スコア表示
+        this.ctx.fillStyle = "white";
+        this.ctx.font = "18px Arial";
+        this.ctx.fillText("Score: " + this.score, 20, SCREEN_SIZE - 20);
+        // ゲーム中はパックマンとゴーストを描画
+        if (this.inGame) {
+          this.pacman.draw(this.ctx);
+          this.ghost.draw(this.ctx);
+        } else if (this.isGameClear) {
+          this.ctx.fillStyle = "white";
+          this.ctx.font = "bold 30px 'Press Start 2P'";
+          const message = "GAME CLEAR!";
+          const textWidth = this.ctx.measureText(message).width;
+          const x = (SCREEN_SIZE - textWidth) / 2;
+          const y = SCREEN_SIZE / 2 - 20;
+          this.ctx.fillText(message, x, y);
+        } else {
+          this.ctx.fillStyle = "white";
+          this.ctx.font = "bold 30px 'Press Start 2P'";
+          const message = "GAME OVER";
+          const textWidth = this.ctx.measureText(message).width;
+          const x = (SCREEN_SIZE - textWidth) / 2;
+          const y = SCREEN_SIZE / 2 - 20;
+          this.ctx.fillText(message, x, y);
+        }
+      }
+      // ゲーム再開処理
+      restartGame() {
+        this.inGame = true;
+        this.isGameClear = false;
+        this.score = 0;
+        // ドットの再初期化
+        this.dots = [];
+        for (let i = 0; i < N_TILES; i++) {
+          this.dots[i] = [];
+          for (let j = 0; j < N_TILES; j++) {
+            this.dots[i][j] = true;
+          }
+        }
+        this.pacman.resetPosition();
+        this.ghost.resetPosition();
+        this.retryButton.style.display = "none";
+        clearInterval(this.timer);
+        this.start();
+      }
+      // キー操作の設定
+      setupKeyListener() {
+        document.addEventListener("keydown", (e) => {
+          // ゲーム終了時はEnterキーで再開
+          if (!this.inGame && e.key === "Enter") {
+            this.restartGame();
+          }
+          switch (e.key) {
+            case "ArrowLeft":
+              this.pacman.setDirection(-this.pacman.getSpeed(), 0);
+              break;
+            case "ArrowRight":
+              this.pacman.setDirection(this.pacman.getSpeed(), 0);
+              break;
+            case "ArrowUp":
+              this.pacman.setDirection(0, -this.pacman.getSpeed());
+              break;
+            case "ArrowDown":
+              this.pacman.setDirection(0, this.pacman.getSpeed());
+              break;
+          }
+        });
+      }
+    }
+
+    // ゲーム開始はタイトル画面のSTARTボタン押下時に実行
+    window.onload = () => {
+      document.getElementById("startButton").addEventListener("click", () => {
+        document.getElementById("titleScreen").style.display = "none";
+        // START押下でPacmanGameを生成しゲーム開始
+        new PacmanGame();
+      });
+    };
+  </script>
+</body>
+</html>

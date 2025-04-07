@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Three.js FPSゲーム</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #blocker {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <!-- クリックでゲーム開始（ポインター・ロック） -->
+  <div id="blocker">クリックしてプレイ</div>
+  
+  <!-- three.js ライブラリとPointerLockControlsの読み込み -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://threejs.org/examples/js/controls/PointerLockControls.js"></script>
+  <script>
+    // シーン・カメラ・レンダラーの基本設定
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x222222);
+    
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    // FPS視点のため、カメラはプレイヤーの目の高さ（例：1.6）に設定
+    camera.position.set(0, 1.6, 0);
+    
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+    
+    // PointerLockControlsによるFPS操作設定
+    const controls = new THREE.PointerLockControls(camera, document.body);
+    const blocker = document.getElementById('blocker');
+    blocker.addEventListener('click', function() {
+      controls.lock();
+    });
+    controls.addEventListener('lock', function() {
+      blocker.style.display = 'none';
+    });
+    controls.addEventListener('unlock', function() {
+      blocker.style.display = 'flex';
+    });
+    
+    // ライティング
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(1, 1, 1);
+    scene.add(directionalLight);
+    
+    // 地面の作成
+    const groundGeometry = new THREE.PlaneGeometry(100, 100);
+    const groundMaterial = new THREE.MeshPhongMaterial({ color: 0x555555 });
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
+    
+    // FPS用なので、プレイヤーの実体は非表示。カメラ位置をプレイヤーの位置として扱います。
+    const player = { position: camera.position };
+    
+    // 弾と敵を管理する配列
+    let bullets = [];
+    let enemies = [];
+    
+    // キー入力の管理（小文字に統一）
+    const keys = {};
+    document.addEventListener("keydown", (e) => { keys[e.key.toLowerCase()] = true; });
+    document.addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
+    
+    // 左クリックで弾を発射（FPSなのでカメラの向いている方向へ）
+    document.addEventListener("mousedown", (event) => {
+      if (event.button === 0 && controls.isLocked) {
+        shoot();
+      }
+    });
+    
+    function shoot() {
+      const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+      const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+      const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+      // 弾の出発点はカメラの位置
+      bullet.position.copy(camera.position);
+      // カメラが向いている方向を取得して発射方向とする
+      const direction = new THREE.Vector3();
+      camera.getWorldDirection(direction);
+      bullet.userData = { direction: direction.clone(), speed: 0.5 };
+      scene.add(bullet);
+      bullets.push(bullet);
+    }
+    
+    // 敵生成関数：プレイヤーの周囲約25単位離れた位置に出現させる
+    function spawnEnemy() {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 25;
+      const x = player.position.x + Math.cos(angle) * distance;
+      const z = player.position.z + Math.sin(angle) * distance;
+      const enemyGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+      const enemyMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+      const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+      enemy.position.set(x, 0.5, z);
+      enemy.userData = { speed: 0.02 };
+      scene.add(enemy);
+      enemies.push(enemy);
+    }
+    // 3秒ごとに敵を生成
+    setInterval(spawnEnemy, 3000);
+    
+    // ブラウザのリサイズに対応
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+    
+    const moveSpeed = 0.1;
+    
+    // メインループ
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      // キー入力による移動（FPSの場合はカメラの向いている方向に基づく）
+      if (controls.isLocked) {
+        if (keys["w"]) controls.moveForward(moveSpeed);
+        if (keys["s"]) controls.moveForward(-moveSpeed);
+        if (keys["a"]) controls.moveRight(-moveSpeed);
+        if (keys["d"]) controls.moveRight(moveSpeed);
+      }
+      
+      // 弾の更新処理
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const bullet = bullets[i];
+        bullet.position.add(bullet.userData.direction.clone().multiplyScalar(bullet.userData.speed));
+        // カメラ（＝プレイヤー）から一定距離以上離れた弾は削除
+        if (bullet.position.distanceTo(camera.position) > 50) {
+          scene.remove(bullet);
+          bullets.splice(i, 1);
+        }
+      }
+      
+      // 敵の更新処理：プレイヤーの方向へ向かって移動
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        const enemy = enemies[i];
+        const direction = new THREE.Vector3().subVectors(camera.position, enemy.position).normalize();
+        enemy.position.add(direction.multiplyScalar(enemy.userData.speed));
+        
+        // プレイヤーとの衝突判定
+        if (enemy.position.distanceTo(camera.position) < 1) {
+          alert("ゲームオーバー！");
+          window.location.reload();
+        }
+        
+        // 弾との衝突判定
+        for (let j = bullets.length - 1; j >= 0; j--) {
+          const bullet = bullets[j];
+          if (enemy.position.distanceTo(bullet.position) < 0.5) {
+            scene.remove(enemy);
+            enemies.splice(i, 1);
+            scene.remove(bullet);
+            bullets.splice(j, 1);
+            break;
+          }
+        }
+      }
+      
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>

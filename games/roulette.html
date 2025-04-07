@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Teacher Assignment</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <style>
+    /* ===== 共通スタイル ===== */
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #1c1c1c, #555);
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Press Start 2P', cursive;
+    }
+    /* ===== 開始画面 ===== */
+    #startScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    #startScreen h1 {
+      font-size: 36px;
+      margin-bottom: 20px;
+    }
+    #toggleContainer {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      width: 300px;
+    }
+    .toggleItem {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px;
+      font-size: 18px;
+      border: 1px solid #fff;
+      border-radius: 5px;
+    }
+    .teacherName {
+      margin-right: 10px;
+      flex: 1;
+    }
+    .percentageInput {
+      width: 60px;
+      margin-right: 5px;
+      font-family: 'Press Start 2P', cursive;
+      height: 20px;
+    }
+    /* iPhone風トグルスイッチ */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 26px;
+      margin-left: 15px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 26px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: lightgreen;
+    }
+    input:checked + .slider:before {
+      transform: translateX(24px);
+    }
+    /* SETボタン（開始画面用） */
+    #setBtn {
+      padding: 13px 26px;
+      font-size: 16px;
+      font-family: 'Press Start 2P', cursive;
+      margin-top: 10px;
+    }
+    /* 円グラフ */
+    #pieChart {
+      margin-top: 20px;
+      background: #fff;
+      border-radius: 50%;
+    }
+    /* エラーメッセージ */
+    #errorMessage {
+      color: red;
+      margin-top: 10px;
+    }
+    /* ===== メイン画面 ===== */
+    #mainScreen {
+      display: none;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      height: 100vh;
+    }
+    #container {
+      width: 700px;
+      padding: 20px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      border: 2px solid #fff;
+      background-color: #000;
+      text-align: center;
+    }
+    h1.mainTitle {
+      font-size: 32px;
+      margin-bottom: 20px;
+    }
+    /* 新卒エリア内の教師情報表示セル */
+    .teacherInfoCell {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    .teacherInfoCell table {
+      margin: 0 auto;
+      border-collapse: collapse;
+    }
+    .teacherInfoCell td {
+      border: 1px solid #fff;
+      padding: 4px 28px;
+      font-size: 16px;
+    }
+    /* メイン画面のボタン群 */
+    .btn {
+      font-family: 'Press Start 2P', cursive;
+      padding: 10px 22px;
+      font-size: 14px;
+      background: linear-gradient(135deg, #f06, #f79);
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 5px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      margin: 5px;
+      transition: transform 0.2s;
+    }
+    .btn:hover {
+      transform: scale(1.05);
+    }
+    .btn:disabled {
+      background: gray;
+      cursor: not-allowed;
+    }
+    /* ===== 新卒エリア ===== */
+    #gradsContainer {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .gradContainer {
+      padding: 10px;
+      border: 1px solid #fff;
+      font-size: 18px;
+    }
+    .gradName {
+      font-size: 18px;
+      margin-bottom: 5px;
+    }
+    /* リール（スロットマシーン風表示） */
+    .reel {
+      margin: 5px 0;
+      height: 40px;
+      overflow: hidden;
+      position: relative;
+      border: 2px solid #fff;
+      background: linear-gradient(to bottom, #444, #222);
+    }
+    .slot {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+    }
+    .item {
+      height: 40px;
+      line-height: 40px;
+      color: gold;
+      font-weight: bold;
+    }
+    /* ===== モーダル（最終結果画面） ===== */
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+    }
+    .modal-content {
+      background-color: #000;
+      padding: 20px;
+      border: 2px solid #fff;
+      text-align: center;
+      width: 80%;
+      max-width: 500px;
+      position: relative;
+    }
+    .modal-header {
+      background-color: #444;
+      padding: 10px;
+      border-bottom: 2px solid #fff;
+    }
+    .modal-header h2 {
+      margin: 0;
+      font-size: 28px;
+    }
+    .modal-content table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .modal-content th, .modal-content td {
+      border: 1px solid #fff;
+      padding: 3px;
+      font-size: 20px;
+      width: 50%;
+    }
+    .close {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      font-size: 28px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- ===== 開始画面 ===== -->
+  <div id="startScreen">
+    <h1>Teacher Assignment</h1>
+    <div id="toggleContainer"></div>
+    <canvas id="pieChart" width="250" height="250"></canvas>
+    <div id="errorMessage"></div>
+    <button id="setBtn" class="btn">SET</button>
+  </div>
+
+  <!-- ===== メイン画面 ===== -->
+  <div id="mainScreen">
+    <div id="container">
+      <h1 class="mainTitle">Teacher Assignment</h1>
+      <!-- ※講師情報表示はタイトル下ではなく、後述の新卒エリア内の空セルに表示 -->
+      <div id="buttonsContainer">
+        <button id="startBtn" class="btn">START</button>
+        <button id="allStopBtn" class="btn" disabled>ALL STOP</button>
+        <button id="topBtn" class="btn">TOP</button>
+      </div>
+      <div id="gradsContainer"></div>
+    </div>
+  </div>
+
+  <!-- ===== モーダル：結果表示 ===== -->
+  <div id="resultModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span id="closeModal" class="close">&times;</span>
+        <h2>RESULT</h2>
+      </div>
+      <div id="resultList"></div>
+      <div style="margin-top:15px;">
+        <button id="downloadBtn" class="btn">DOWNLOAD</button>
+        <button id="modalCloseBtn" class="btn">CLOSE</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== イージング関数 =====
+    function easeInQuad(t) {
+      return t * t;
+    }
+    function easeOutQuad(t) {
+      return t * (2 - t);
+    }
+
+    // ===== 各種変数 =====
+    const defaultInstructors = ["大田", "信田", "山本", "大野"];
+    const newGrads = ["植野 風香", "川淵 彩流", "杉尾 和音", "藤原 歩未", "廣石 幸之介", "福岡 浩太朗", "松延 潤", "森山 泰成"];
+    let instructors = []; // 有効講師の設定情報（{name, percent}）
+    let weightedTeachers = []; // ルーレット用の重み付き配列
+    const itemHeight = 40;  
+    let cycleHeight = 0;    
+
+    const startScreen = document.getElementById("startScreen");
+    const toggleContainer = document.getElementById("toggleContainer");
+    const setBtn = document.getElementById("setBtn");
+    const mainScreen = document.getElementById("mainScreen");
+    const startBtn = document.getElementById("startBtn");
+    const allStopBtn = document.getElementById("allStopBtn");
+    const topBtn = document.getElementById("topBtn");
+    const gradsContainer = document.getElementById("gradsContainer");
+    const resultModal = document.getElementById("resultModal");
+    const resultList = document.getElementById("resultList");
+    const closeModalElem = document.getElementById("closeModal");
+    const modalCloseBtn = document.getElementById("modalCloseBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const errorMessage = document.getElementById("errorMessage");
+    const pieChartCanvas = document.getElementById("pieChart");
+    const pieCtx = pieChartCanvas.getContext("2d");
+
+    let gradElements = [];
+    let teacherInfoCell = null; // 新卒エリア内の空セル（講師情報表示用）
+
+    // 円グラフ用の色
+    const pieColors = ["#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40"];
+
+    // ===== 開始画面：講師トグルリスト生成 =====
+    function initializeToggleList() {
+      toggleContainer.innerHTML = "";
+      defaultInstructors.forEach((teacher) => {
+        const div = document.createElement("div");
+        div.classList.add("toggleItem");
+
+        // 講師名
+        const nameSpan = document.createElement("span");
+        nameSpan.classList.add("teacherName");
+        nameSpan.textContent = teacher;
+        div.appendChild(nameSpan);
+
+        // パーセンテージ入力欄
+        const percentInput = document.createElement("input");
+        percentInput.type = "number";
+        percentInput.classList.add("percentageInput");
+        percentInput.value = 25;
+        percentInput.min = 0;
+        percentInput.max = 100;
+        percentInput.step = 5;
+        percentInput.addEventListener("wheel", function(e) {
+          e.preventDefault();
+          let delta = e.deltaY < 0 ? 5 : -5;
+          let newVal = parseInt(this.value, 10) + delta;
+          if(newVal < parseInt(this.min, 10)) newVal = parseInt(this.min, 10);
+          if(newVal > parseInt(this.max, 10)) newVal = parseInt(this.max, 10);
+          this.value = newVal;
+          triggerDynamicAdjustment(this);
+          updatePieChart();
+        });
+        percentInput.addEventListener("focus", function() {
+          this.dataset.prevValue = this.value;
+        });
+        percentInput.addEventListener("change", function() {
+          triggerDynamicAdjustment(this);
+          updatePieChart();
+        });
+        div.appendChild(percentInput);
+
+        // パーセント記号
+        const percentSymbol = document.createElement("span");
+        percentSymbol.textContent = "%";
+        div.appendChild(percentSymbol);
+
+        // トグルスイッチ
+        const label = document.createElement("label");
+        label.classList.add("switch");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = true;
+        checkbox.id = "toggle_" + teacher;
+        checkbox.addEventListener("change", () => {
+          recalcPercentages();
+          updatePieChart();
+        });
+        const slider = document.createElement("span");
+        slider.classList.add("slider");
+        label.appendChild(checkbox);
+        label.appendChild(slider);
+        div.appendChild(label);
+
+        toggleContainer.appendChild(div);
+      });
+      recalcPercentages();
+      updatePieChart();
+    }
+
+    // 動的調整処理
+    function triggerDynamicAdjustment(changedInput) {
+      let prev = parseInt(changedInput.dataset.prevValue || changedInput.value, 10);
+      let current = parseInt(changedInput.value, 10);
+      let diff = current - prev;
+      if(diff === 0) {
+        changedInput.dataset.prevValue = current;
+        return;
+      }
+      let parent = changedInput.parentElement;
+      let items = Array.from(toggleContainer.querySelectorAll(".toggleItem"));
+      let index = items.indexOf(parent);
+      let target = null;
+      for(let i = index + 1; i < items.length; i++){
+        let inp = items[i].querySelector("input.percentageInput");
+        let chk = items[i].querySelector("input[type='checkbox']");
+        if(chk.checked) {
+          target = inp;
+          break;
+        }
+      }
+      if(!target) {
+        for(let i = 0; i < index; i++){
+          let inp = items[i].querySelector("input.percentageInput");
+          let chk = items[i].querySelector("input[type='checkbox']");
+          if(chk.checked) {
+            target = inp;
+            break;
+          }
+        }
+      }
+      if(target) {
+        let targetVal = parseInt(target.value, 10);
+        if(targetVal - diff < 0) {
+          changedInput.value = prev;
+        } else {
+          target.value = targetVal - diff;
+          target.dataset.prevValue = target.value;
+          changedInput.dataset.prevValue = changedInput.value;
+        }
+      } else {
+        changedInput.value = prev;
+      }
+    }
+
+    // 自動再計算
+    function recalcPercentages() {
+      const toggleItems = toggleContainer.querySelectorAll(".toggleItem");
+      let activeItems = [];
+      toggleItems.forEach(item => {
+        const checkbox = item.querySelector("input[type='checkbox']");
+        const percentInput = item.querySelector("input.percentageInput");
+        if (checkbox.checked) {
+          percentInput.disabled = false;
+          activeItems.push(percentInput);
+        } else {
+          percentInput.disabled = true;
+          percentInput.value = 0;
+        }
+      });
+      if (activeItems.length > 0) {
+        const base = Math.floor(100 / activeItems.length);
+        let remainder = 100 - (base * activeItems.length);
+        activeItems.forEach((input) => {
+          let value = base;
+          if (remainder > 0) {
+            value += 1;
+            remainder--;
+          }
+          input.value = value;
+          input.dataset.prevValue = value;
+        });
+      }
+    }
+
+    // ===== 円グラフ更新 =====
+    function updatePieChart() {
+      pieCtx.clearRect(0, 0, pieChartCanvas.width, pieChartCanvas.height);
+      const toggleItems = toggleContainer.querySelectorAll(".toggleItem");
+      let activeData = [];
+      toggleItems.forEach(item => {
+        const checkbox = item.querySelector("input[type='checkbox']");
+        const percentInput = item.querySelector("input.percentageInput");
+        if (checkbox.checked) {
+          activeData.push({
+            name: item.querySelector(".teacherName").textContent,
+            percent: parseInt(percentInput.value, 10)
+          });
+        }
+      });
+      let startAngle = 0;
+      activeData.forEach((data, index) => {
+        const sliceAngle = (data.percent / 100) * 2 * Math.PI;
+        pieCtx.beginPath();
+        pieCtx.moveTo(pieChartCanvas.width/2, pieChartCanvas.height/2);
+        pieCtx.arc(pieChartCanvas.width/2, pieChartCanvas.height/2, Math.min(pieChartCanvas.width, pieChartCanvas.height)/2, startAngle, startAngle + sliceAngle);
+        pieCtx.closePath();
+        pieCtx.fillStyle = pieColors[index % pieColors.length];
+        pieCtx.fill();
+        
+        // ラベル表示：名前とパーセンテージを改行して表示
+        const midAngle = startAngle + sliceAngle / 2;
+        const radius = Math.min(pieChartCanvas.width, pieChartCanvas.height) / 2;
+        const labelX = pieChartCanvas.width / 2 + (radius * 0.6) * Math.cos(midAngle);
+        const labelY = pieChartCanvas.height / 2 + (radius * 0.6) * Math.sin(midAngle);
+        pieCtx.fillStyle = "#fff";
+        pieCtx.font = "16px 'Press Start 2P'";
+        pieCtx.textAlign = "center";
+        pieCtx.textBaseline = "middle";
+        const lineHeight = 18;
+        pieCtx.fillText(data.name, labelX, labelY - lineHeight/2);
+        pieCtx.fillText(data.percent + "%", labelX, labelY + lineHeight/2);
+        
+        startAngle += sliceAngle;
+      });
+    }
+
+    // 講師情報表示更新（新卒エリア内の空セルに表形式で表示）
+    function updateTeacherInfo() {
+      if (!teacherInfoCell) return;
+      teacherInfoCell.innerHTML = "";
+      const table = document.createElement("table");
+      instructors.forEach(teacher => {
+        const tr = document.createElement("tr");
+        const tdName = document.createElement("td");
+        tdName.textContent = teacher.name;
+        const tdPercent = document.createElement("td");
+        tdPercent.textContent = teacher.percent + "%";
+        tr.appendChild(tdName);
+        tr.appendChild(tdPercent);
+        table.appendChild(tr);
+      });
+      teacherInfoCell.appendChild(table);
+    }
+
+    // ===== メインシステム初期化 =====
+    function initializeMainSystem() {
+      // 講師の重み付き配列作成
+      weightedTeachers = [];
+      instructors.forEach(instrObj => {
+        const count = parseInt(instrObj.percent, 10);
+        for (let i = 0; i < count; i++) {
+          weightedTeachers.push(instrObj.name);
+        }
+      });
+      cycleHeight = weightedTeachers.length * itemHeight;
+      gradsContainer.innerHTML = "";
+      gradElements = [];
+      // 新卒エリアの各セル生成
+      newGrads.forEach(grad => {
+        const gradDiv = document.createElement("div");
+        gradDiv.classList.add("gradContainer");
+        const gradName = document.createElement("div");
+        gradName.classList.add("gradName");
+        gradName.textContent = grad;
+        gradDiv.appendChild(gradName);
+        const reelDiv = document.createElement("div");
+        reelDiv.classList.add("reel");
+        const slotDiv = document.createElement("div");
+        slotDiv.classList.add("slot");
+
+        let randomized = [...weightedTeachers];
+        shuffleArray(randomized);
+        gradDiv.randomizedTeachers = randomized;
+
+        let slotContent = "";
+        for (let i = 0; i < 2; i++) {
+          randomized.forEach(name => {
+            slotContent += `<div class="item">${name}</div>`;
+          });
+        }
+        slotDiv.innerHTML = slotContent;
+        reelDiv.appendChild(slotDiv);
+        gradDiv.appendChild(reelDiv);
+
+        const randomIndex = Math.floor(Math.random() * randomized.length);
+        gradDiv.currentY = randomIndex * itemHeight;
+        slotDiv.style.transform = `translateY(-${gradDiv.currentY}px)`;
+
+        const stopBtn = document.createElement("button");
+        stopBtn.classList.add("btn");
+        stopBtn.textContent = "STOP";
+        stopBtn.disabled = true;
+        gradDiv.appendChild(stopBtn);
+
+        gradDiv.slotDiv = slotDiv;
+        gradDiv.reelDiv = reelDiv;
+        gradDiv.stopBtn = stopBtn;
+        gradDiv.defaultSpeed = 8;
+        gradDiv.speed = 8;
+        gradDiv.running = false;
+        gradDiv.animationFrameId = null;
+        gradDiv.stopped = false;
+
+        gradsContainer.appendChild(gradDiv);
+        gradElements.push(gradDiv);
+
+        stopBtn.addEventListener("click", function() {
+          if (gradDiv.running) stopReel(gradDiv);
+        });
+      });
+      // 新卒数が3の倍数でなければ、空セルとして講師情報表示用セルを追加
+      if (newGrads.length % 3 !== 0) {
+        teacherInfoCell = document.createElement("div");
+        teacherInfoCell.id = "teacherInfoCell";
+        teacherInfoCell.classList.add("gradContainer", "teacherInfoCell");
+        gradsContainer.appendChild(teacherInfoCell);
+        updateTeacherInfo();
+      }
+    }
+
+    // Fisher-Yates シャッフル
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    // ===== リールアニメーション =====
+    function animateReel(gradDiv) {
+      let accelerationDuration = 500;
+      let startTime = null;
+      let targetSpeed = gradDiv.defaultSpeed;
+      function step(timestamp) {
+        if (!gradDiv.running) return;
+        if (!startTime) startTime = timestamp;
+        let elapsed = timestamp - startTime;
+        let progress = Math.min(elapsed / accelerationDuration, 1);
+        let currentSpeed = targetSpeed * easeInQuad(progress);
+        gradDiv.speed = currentSpeed;
+        gradDiv.currentY -= currentSpeed;
+        if (gradDiv.currentY < 0) {
+          gradDiv.currentY += cycleHeight;
+        }
+        gradDiv.slotDiv.style.transform = `translateY(-${gradDiv.currentY}px)`;
+        gradDiv.animationFrameId = requestAnimationFrame(step);
+      }
+      gradDiv.running = true;
+      gradDiv.animationFrameId = requestAnimationFrame(step);
+    }
+
+    // ===== 個別STOP処理 =====
+    function stopReel(gradDiv) {
+      gradDiv.running = false;
+      if (gradDiv.animationFrameId) {
+        cancelAnimationFrame(gradDiv.animationFrameId);
+        gradDiv.animationFrameId = null;
+      }
+      gradDiv.currentY = Math.floor(gradDiv.currentY / itemHeight) * itemHeight;
+      gradDiv.slotDiv.style.transform = `translateY(-${gradDiv.currentY}px)`;
+      gradDiv.stopped = true;
+      gradDiv.stopBtn.disabled = true;
+      checkAllStopped();
+    }
+
+    // ===== 減速停止処理 =====
+    function decelerateAndStop(gradDiv) {
+      let duration = 1500;
+      let startTime = null;
+      let initialSpeed = gradDiv.speed;
+      cancelAnimationFrame(gradDiv.animationFrameId);
+      function step(timestamp) {
+        if (!startTime) startTime = timestamp;
+        let elapsed = timestamp - startTime;
+        let progress = Math.min(elapsed / duration, 1);
+        let currentSpeed = initialSpeed * (1 - easeOutQuad(progress));
+        gradDiv.speed = currentSpeed;
+        gradDiv.currentY -= currentSpeed;
+        if (gradDiv.currentY < 0) {
+          gradDiv.currentY += cycleHeight;
+        }
+        gradDiv.slotDiv.style.transform = `translateY(-${gradDiv.currentY}px)`;
+        if (progress < 1) {
+          gradDiv.animationFrameId = requestAnimationFrame(step);
+        } else {
+          gradDiv.running = false;
+          gradDiv.speed = gradDiv.defaultSpeed;
+          gradDiv.currentY = Math.floor(gradDiv.currentY / itemHeight) * itemHeight;
+          gradDiv.slotDiv.style.transform = `translateY(-${gradDiv.currentY}px)`;
+          gradDiv.stopped = true;
+          gradDiv.stopBtn.disabled = true;
+          checkAllStopped();
+        }
+      }
+      gradDiv.running = true;
+      gradDiv.animationFrameId = requestAnimationFrame(step);
+    }
+
+    // ===== START ボタン動作 =====
+    startBtn.addEventListener("click", function() {
+      startBtn.disabled = true;
+      allStopBtn.disabled = false;
+      gradElements.forEach(gradDiv => {
+        gradDiv.stopped = false;
+        gradDiv.stopBtn.disabled = false;
+        gradDiv.running = true;
+        animateReel(gradDiv);
+      });
+    });
+
+    // ===== ALL STOPボタン動作 =====
+    allStopBtn.addEventListener("click", function() {
+      allStopBtn.disabled = true;
+      let cumulativeDelay = 0;
+      gradElements.forEach(gradDiv => {
+        if (gradDiv.running) {
+          let delay = Math.floor(Math.random() * 1000) + 1000;
+          cumulativeDelay += delay;
+          setTimeout(() => {
+            decelerateAndStop(gradDiv);
+          }, cumulativeDelay);
+        }
+      });
+    });
+
+    // TOPボタン動作：開始画面へ戻る
+    topBtn.addEventListener("click", function() {
+      stopAllReels();
+      mainScreen.style.display = "none";
+      startScreen.style.display = "flex";
+      initializeToggleList();
+    });
+
+    // ===== 全エリア停止チェック =====
+    function checkAllStopped() {
+      if (gradElements.every(g => g.stopped)) {
+        startBtn.disabled = false;
+        allStopBtn.disabled = true;
+        showModal();
+      }
+    }
+
+    function stopAllReels() {
+      gradElements.forEach(gradDiv => {
+        if (gradDiv.running) {
+          cancelAnimationFrame(gradDiv.animationFrameId);
+          gradDiv.running = false;
+          gradDiv.animationFrameId = null;
+          gradDiv.stopBtn.disabled = true;
+          gradDiv.currentY = Math.floor(gradDiv.currentY / itemHeight) * itemHeight;
+          gradDiv.slotDiv.style.transform = `translateY(-${gradDiv.currentY}px)`;
+        }
+      });
+      startBtn.disabled = false;
+      allStopBtn.disabled = true;
+    }
+
+    // ===== 結果モーダル表示 =====
+    function showModal() {
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+      const th1 = document.createElement("th");
+      th1.textContent = "新入社員";
+      const th2 = document.createElement("th");
+      th2.textContent = "担当講師";
+      headerRow.appendChild(th1);
+      headerRow.appendChild(th2);
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+      const tbody = document.createElement("tbody");
+      gradElements.forEach(gradDiv => {
+        const row = document.createElement("tr");
+        const td1 = document.createElement("td");
+        td1.textContent = gradDiv.querySelector(".gradName").textContent;
+        const td2 = document.createElement("td");
+        const index = (Math.floor(gradDiv.currentY / itemHeight)) % gradDiv.randomizedTeachers.length;
+        td2.textContent = gradDiv.randomizedTeachers[index];
+        row.appendChild(td1);
+        row.appendChild(td2);
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      resultList.innerHTML = "";
+      resultList.appendChild(table);
+      resultModal.style.display = "flex";
+    }
+
+    // ===== モーダル閉じ処理 =====
+    function handleCloseModal() {
+      resultModal.style.display = "none";
+    }
+    closeModalElem.addEventListener("click", handleCloseModal);
+    modalCloseBtn.addEventListener("click", handleCloseModal);
+    window.addEventListener("click", function(event) {
+      if (event.target === resultModal) handleCloseModal();
+    });
+
+    // ===== DOWNLOAD ボタン =====
+    downloadBtn.addEventListener("click", function() {
+      html2canvas(document.querySelector(".modal-content")).then(canvas => {
+        const link = document.createElement("a");
+        link.href = canvas.toDataURL("image/png");
+        link.download = "result.png";
+        link.click();
+      });
+    });
+
+    // ===== SET ボタン動作 =====
+    setBtn.addEventListener("click", function() {
+      errorMessage.textContent = "";
+      const toggleItems = toggleContainer.querySelectorAll(".toggleItem");
+      let totalPercent = 0;
+      let activeTeachers = [];
+      toggleItems.forEach(item => {
+        const checkbox = item.querySelector("input[type='checkbox']");
+        const percentInput = item.querySelector("input.percentageInput");
+        const teacherName = item.querySelector(".teacherName").textContent;
+        if (checkbox.checked) {
+          const val = parseInt(percentInput.value, 10);
+          totalPercent += val;
+          activeTeachers.push({ name: teacherName, percent: val });
+        }
+      });
+      if (totalPercent !== 100) {
+        errorMessage.textContent = "有効な講師のパーセンテージ合計が100%ではありません。";
+        return;
+      }
+      instructors = activeTeachers;
+      // SET時は新卒エリア内の teacherInfoCell（空セル）に講師情報表を表示する
+      initializeMainSystem();
+      startScreen.style.display = "none";
+      mainScreen.style.display = "flex";
+    });
+
+    // ===== 初期化 =====
+    initializeToggleList();
+
+    // 初回描画時、Google Fonts の読み込み完了を待ってから円グラフを再描画
+    if (document.fonts) {
+      document.fonts.ready.then(() => {
+        updatePieChart();
+      });
+    }
+  </script>
+</body>
+</html>

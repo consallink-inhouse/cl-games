@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Memory Panel</title>
+  <!-- おしゃれなレトロフォント「Press Start 2P」を利用 -->
+  <link href="https://fonts.googleapis.com/css?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    /* 全体背景とフォント設定 */
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #1c1c1c, #555);
+      font-family: 'Press Start 2P', cursive;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    h1 {
+      margin-bottom: 20px;
+    }
+    /* ゲーム盤（カードグリッド） */
+    #gameContainer {
+      display: grid;
+      grid-template-columns: repeat(4, 150px);
+      grid-gap: 10px;
+      margin-bottom: 20px;
+    }
+    /* カードの基本スタイルと3Dパースの設定 */
+    .card {
+      width: 150px;
+      height: 150px;
+      perspective: 1000px;
+      cursor: pointer;
+      position: relative;
+    }
+    .card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.6s;
+      transform-style: preserve-3d;
+    }
+    /* フリップアニメーション */
+    .card.flipped .card-inner {
+      transform: rotateY(180deg);
+    }
+    /* 表と裏の面の設定 */
+    .card-front, .card-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+    }
+    .card-front {
+      transform: rotateY(180deg);
+      background-size: cover;
+      background-position: center;
+      border: 2px solid #fff;
+    }
+    .card-back {
+      background: #000;
+      border: 2px solid #fff;
+    }
+    /* パネル一致時のアニメーション（ズームアップして戻す） */
+    @keyframes matchAnimation {
+      0% { transform: rotateY(180deg) scale(1); }
+      60% { transform: rotateY(180deg) scale(1.2); }
+      100% { transform: rotateY(180deg) scale(1); }
+    }
+    .card.matched .card-inner {
+      animation: matchAnimation 0.5s ease-in-out;
+    }
+    /* 特殊カード用のアニメーション（グロー効果） */
+    @keyframes specialGlow {
+      0% { box-shadow: 0 0 0px rgba(255,215,0,0); }
+      50% { box-shadow: 0 0 20px 10px rgba(255,215,0,1); }
+      100% { box-shadow: 0 0 0px rgba(255,215,0,0); }
+    }
+    .card.special.flipped {
+      animation: specialGlow 1s ease-out;
+    }
+    /* スコア表示エリア（今回は試行回数を表示） */
+    #scoreBoard {
+      font-size: 16px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    /* 結果表示オーバーレイ */
+    #resultScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    #resultScreen h2 {
+      margin-bottom: 20px;
+      white-space: pre-wrap;
+      text-align: center;
+    }
+    /* リスタートボタン */
+    #restartButton {
+      padding: 10px 20px;
+      font-size: 20px;
+      background: linear-gradient(135deg, #f06, #f79);
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 5px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      transition: transform 0.2s;
+    }
+    #restartButton:hover {
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+<body>
+  <h1>Memory Panel</h1>
+  <div id="gameContainer"></div>
+  <!-- スコアボードを試行回数表示に変更 -->
+  <div id="scoreBoard">
+    <p>Attempts: <span id="attemptsCount">0</span></p>
+  </div>
+  <div id="resultScreen">
+    <h2 id="resultText"></h2>
+    <button id="restartButton">RESTART</button>
+  </div>
+
+  <script>
+    /* 画像ファイルのリスト（./picture 内のpng/jpeg） */
+    const imageList = [
+      "DSC_0104.JPG",
+      "DSC_0645 (1).JPG",
+      "MicrosoftTeams-image (40).png",
+      "DSC_0170.JPG",
+      "DSC_0513.JPG",
+      "PA060337.JPG",
+      "P4050408.JPG",
+      "IMG_2314.jpeg"
+    ];
+
+    let selectedImages = [];
+    let cards = [];
+    let firstCard = null;
+    let secondCard = null;
+    let lockBoard = false;
+    let attempts = 0;
+
+    const gameContainer = document.getElementById('gameContainer');
+    const attemptsCountEl = document.getElementById('attemptsCount');
+    const resultScreen = document.getElementById('resultScreen');
+    const resultText = document.getElementById('resultText');
+    const restartButton = document.getElementById('restartButton');
+
+    function initGame() {
+      // 初期化
+      gameContainer.innerHTML = '';
+      cards = [];
+      firstCard = null;
+      secondCard = null;
+      lockBoard = false;
+      attempts = 0;
+      attemptsCountEl.textContent = 0;
+      resultScreen.style.display = 'none';
+
+      // imageListからランダムに8画像を選出
+      let available = [...imageList];
+      selectedImages = [];
+      for (let i = 0; i < 8; i++) {
+        const randomIndex = Math.floor(Math.random() * available.length);
+        selectedImages.push(available.splice(randomIndex, 1)[0]);
+      }
+      
+      // 選んだ画像を2枚ずつ用意（計16枚）しシャッフル
+      let pairedImages = [...selectedImages, ...selectedImages];
+      pairedImages.sort(() => Math.random() - 0.5);
+
+      // カード要素を作成し、gameContainerに追加（カードは裏・表の2面を持つ構造）
+      pairedImages.forEach((imgSrc, index) => {
+        const card = document.createElement('div');
+        card.classList.add('card');
+        card.dataset.image = imgSrc;
+        card.dataset.index = index;
+
+        const cardInner = document.createElement('div');
+        cardInner.classList.add('card-inner');
+
+        const cardFront = document.createElement('div');
+        cardFront.classList.add('card-front');
+        cardFront.style.backgroundImage = "url('./picture/" + imgSrc + "')";
+
+        const cardBack = document.createElement('div');
+        cardBack.classList.add('card-back');
+
+        cardInner.appendChild(cardFront);
+        cardInner.appendChild(cardBack);
+        card.appendChild(cardInner);
+
+        card.addEventListener('click', flipCard);
+        gameContainer.appendChild(card);
+        cards.push(card);
+      });
+    }
+
+    function flipCard() {
+      if (lockBoard) return;
+      if (this.classList.contains('flipped')) return;
+
+      // カードを裏返す（フリップアニメーションはCSSで実現）
+      this.classList.add('flipped');
+
+      // 特殊画像「P4050408.JPG」の場合、特殊なアニメーション用クラスを追加
+      if (this.dataset.image === "P4050408.JPG") {
+        this.classList.add('special');
+      }
+
+      if (!firstCard) {
+        firstCard = this;
+        return;
+      }
+      
+      secondCard = this;
+      
+      // 2枚目がめくられた時点で1セット分の試行回数を加算
+      attempts++;
+      attemptsCountEl.textContent = attempts;
+
+      lockBoard = true;
+      checkForMatch();
+    }
+
+    function checkForMatch() {
+      let isMatch = firstCard.dataset.image === secondCard.dataset.image;
+      if (isMatch) {
+        // ローカル変数にカードの参照を保持
+        const card1 = firstCard;
+        const card2 = secondCard;
+        card1.removeEventListener('click', flipCard);
+        card2.removeEventListener('click', flipCard);
+        resetBoard();
+        // flipアニメーション完了後にズームアップアニメーションを実行
+        setTimeout(() => {
+          card1.classList.add('matched');
+          card2.classList.add('matched');
+        }, 600);
+        checkGameOver();
+      } else {
+        // 不一致の場合：一定時間後にカードを裏返す
+        setTimeout(() => {
+          firstCard.classList.remove('flipped');
+          secondCard.classList.remove('flipped');
+          // 不一致時は特殊アニメーション用クラスも削除
+          firstCard.classList.remove('special');
+          secondCard.classList.remove('special');
+          resetBoard();
+        }, 1000);
+      }
+    }
+
+    function resetBoard() {
+      [firstCard, secondCard] = [null, null];
+      lockBoard = false;
+    }
+
+    function checkGameOver() {
+      // 全カードが裏返されているかチェック
+      const allFlipped = cards.every(card => card.classList.contains('flipped'));
+      if (allFlipped) {
+        let resultMsg = "Game Clear!\n";
+        resultMsg += "Attempts: " + attempts;
+        resultText.textContent = resultMsg;
+        resultScreen.style.display = 'flex';
+      }
+    }
+
+    restartButton.addEventListener('click', initGame);
+
+    // ゲーム開始
+    initGame();
+  </script>
+</body>
+</html>
