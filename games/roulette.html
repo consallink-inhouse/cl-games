@@ -283,6 +283,7 @@
         <button id="startBtn" class="btn">START</button>
         <button id="allStopBtn" class="btn" disabled>ALL STOP</button>
         <button id="topBtn" class="btn">TOP</button>
+        <button id="nobutaBtn" class="btn" disabled>NOBUTA FEAVER</button>
       </div>
       <div id="gradsContainer"></div>
     </div>
@@ -303,7 +304,15 @@
     </div>
   </div>
 
+  <!-- 花吹雪用Canvas -->
+  <canvas id="confettiCanvas" style="position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:3000;"></canvas>
+
   <script>
+
+    const nobutaBtn = document.getElementById("nobutaBtn");
+    let nobutaFeaverFlg = false;
+
+
     // ===== イージング関数 =====
     function easeInQuad(t) {
       return t * t;
@@ -317,8 +326,8 @@
     const newGrads = ["植野 風香", "川淵 彩流", "杉尾 和音", "藤原 歩未", "廣石 幸之介", "福岡 浩太朗", "松延 潤", "森山 泰成"];
     let instructors = []; // 有効講師の設定情報（{name, percent}）
     let weightedTeachers = []; // ルーレット用の重み付き配列
-    const itemHeight = 40;  
-    let cycleHeight = 0;    
+    const itemHeight = 40;
+    let cycleHeight = 0;
 
     const startScreen = document.getElementById("startScreen");
     const toggleContainer = document.getElementById("toggleContainer");
@@ -510,7 +519,7 @@
         pieCtx.closePath();
         pieCtx.fillStyle = pieColors[index % pieColors.length];
         pieCtx.fill();
-        
+
         // ラベル表示：名前とパーセンテージを改行して表示
         const midAngle = startAngle + sliceAngle / 2;
         const radius = Math.min(pieChartCanvas.width, pieChartCanvas.height) / 2;
@@ -523,7 +532,7 @@
         const lineHeight = 18;
         pieCtx.fillText(data.name, labelX, labelY - lineHeight/2);
         pieCtx.fillText(data.percent + "%", labelX, labelY + lineHeight/2);
-        
+
         startAngle += sliceAngle;
       });
     }
@@ -548,6 +557,7 @@
 
     // ===== メインシステム初期化 =====
     function initializeMainSystem() {
+
       // 講師の重み付き配列作成
       weightedTeachers = [];
       instructors.forEach(instrObj => {
@@ -604,6 +614,8 @@
         gradDiv.running = false;
         gradDiv.animationFrameId = null;
         gradDiv.stopped = false;
+
+        gradDiv.originalSlotHTML = slotContent;
 
         gradsContainer.appendChild(gradDiv);
         gradElements.push(gradDiv);
@@ -704,17 +716,30 @@
     startBtn.addEventListener("click", function() {
       startBtn.disabled = true;
       allStopBtn.disabled = false;
+      nobutaBtn.disabled = false;
+
       gradElements.forEach(gradDiv => {
+        gradDiv.slotDiv.innerHTML = gradDiv.originalSlotHTML;
+        const randomized = [...weightedTeachers];
+        shuffleArray(randomized);
+        gradDiv.randomizedTeachers = randomized;
+
+        const randomIndex = Math.floor(Math.random() * randomized.length);
+        gradDiv.currentY = randomIndex * itemHeight;
+        gradDiv.slotDiv.style.transform = `translateY(-${gradDiv.currentY}px)`;
+
         gradDiv.stopped = false;
-        gradDiv.stopBtn.disabled = false;
         gradDiv.running = true;
+        gradDiv.stopBtn.disabled = false;
         animateReel(gradDiv);
       });
+
     });
 
     // ===== ALL STOPボタン動作 =====
     allStopBtn.addEventListener("click", function() {
       allStopBtn.disabled = true;
+      nobutaBtn.disabled = true;
       let cumulativeDelay = 0;
       gradElements.forEach(gradDiv => {
         if (gradDiv.running) {
@@ -740,6 +765,7 @@
       if (gradElements.every(g => g.stopped)) {
         startBtn.disabled = false;
         allStopBtn.disabled = true;
+        nobutaBtn.disabled = true;
         showModal();
       }
     }
@@ -757,6 +783,7 @@
       });
       startBtn.disabled = false;
       allStopBtn.disabled = true;
+      nobutaBtn.disabled = true;
     }
 
     // ===== 結果モーダル表示 =====
@@ -772,18 +799,28 @@
       headerRow.appendChild(th2);
       thead.appendChild(headerRow);
       table.appendChild(thead);
+
       const tbody = document.createElement("tbody");
       gradElements.forEach(gradDiv => {
         const row = document.createElement("tr");
         const td1 = document.createElement("td");
         td1.textContent = gradDiv.querySelector(".gradName").textContent;
         const td2 = document.createElement("td");
-        const index = (Math.floor(gradDiv.currentY / itemHeight)) % gradDiv.randomizedTeachers.length;
-        td2.textContent = gradDiv.randomizedTeachers[index];
+
+        let teacherName;
+        if (nobutaFeaverFlg) {
+          teacherName = "信田";
+        } else {
+          const index = Math.floor(gradDiv.currentY / itemHeight) % gradDiv.randomizedTeachers.length;
+          teacherName = gradDiv.randomizedTeachers[index];
+        }
+
+        td2.textContent = teacherName;
         row.appendChild(td1);
         row.appendChild(td2);
         tbody.appendChild(row);
       });
+      nobutaFeaverFlg = false;
       table.appendChild(tbody);
       resultList.innerHTML = "";
       resultList.appendChild(table);
@@ -846,6 +883,132 @@
         updatePieChart();
       });
     }
+
+    const confettiCanvas = document.getElementById("confettiCanvas");
+    const confettiCtx = confettiCanvas.getContext("2d");
+    let confettiParticles = [];
+
+    function resizeCanvas() {
+      confettiCanvas.width = window.innerWidth;
+      confettiCanvas.height = window.innerHeight;
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    function createConfetti() {
+      confettiParticles = [];
+      for (let i = 0; i < 100; i++) {
+        confettiParticles.push({
+          x: Math.random() * confettiCanvas.width,
+          y: Math.random() * confettiCanvas.height - confettiCanvas.height,
+          speed: Math.random() * 3 + 2,
+          size: Math.random() * 6 + 4,
+          angle: Math.random() * 2 * Math.PI,
+          rotationSpeed: Math.random() * 0.1 - 0.05,
+          color: `hsl(${Math.random() * 360}, 100%, 75%)`
+        });
+      }
+    }
+
+    function updateConfetti() {
+      confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+      confettiParticles.forEach(p => {
+        p.y += p.speed;
+        p.angle += p.rotationSpeed;
+        if (p.y > confettiCanvas.height) p.y = -p.size;
+        confettiCtx.save();
+        confettiCtx.translate(p.x, p.y);
+        confettiCtx.rotate(p.angle);
+        confettiCtx.fillStyle = p.color;
+        confettiCtx.beginPath();
+        confettiCtx.arc(0, 0, p.size, 0, Math.PI * 2);
+        confettiCtx.fill();
+        confettiCtx.restore();
+      });
+    }
+
+    let confettiInterval = null;
+
+    function startConfetti(duration = 2000) {
+      createConfetti();
+      clearInterval(confettiInterval);
+      confettiInterval = setInterval(updateConfetti, 30);
+      setTimeout(() => {
+        clearInterval(confettiInterval);
+        confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+      }, duration);
+    }
+
+    // ===== NOBUTA FEAVERボタン動作 =====
+    nobutaBtn.addEventListener("click", function () {
+      nobutaBtn.disabled = true;
+      startBtn.disabled = true;
+      allStopBtn.disabled = true;
+      nobutaFeaverFlg = true;
+
+      // 花吹雪アニメーション開始
+      startConfetti(10000);
+
+      // リールはそのまま、停止時のみ表示を信田にするためフラグを立てる
+      gradElements.forEach(gradDiv => {
+        gradDiv.feaverMode = true;
+        gradDiv.stopped = false;
+        gradDiv.running = true;
+        gradDiv.stopBtn.disabled = true;
+        animateReel(gradDiv);
+      });
+
+      // 順に停止（2秒後から）※左上から順に止める
+      setTimeout(() => {
+        const orderedGrads = [...gradElements];
+        orderedGrads.forEach((gradDiv, index) => {
+          setTimeout(() => {
+            decelerateAndStop(gradDiv);
+          }, 300 * index);
+        });
+      }, 2000);
+    });
+
+    const originalDecelerateAndStop = decelerateAndStop;
+    decelerateAndStop = function (gradDiv) {
+      let duration = 1500;
+      let startTime = null;
+      let initialSpeed = gradDiv.speed;
+      cancelAnimationFrame(gradDiv.animationFrameId);
+      function step(timestamp) {
+        if (!startTime) startTime = timestamp;
+        let elapsed = timestamp - startTime;
+        let progress = Math.min(elapsed / duration, 1);
+        let currentSpeed = initialSpeed * (1 - easeOutQuad(progress));
+        gradDiv.speed = currentSpeed;
+        gradDiv.currentY -= currentSpeed;
+        if (gradDiv.currentY < 0) {
+          gradDiv.currentY += cycleHeight;
+        }
+        gradDiv.slotDiv.style.transform = `translateY(-${gradDiv.currentY}px)`;
+        if (progress < 1) {
+          gradDiv.animationFrameId = requestAnimationFrame(step);
+        } else {
+          gradDiv.running = false;
+          gradDiv.speed = gradDiv.defaultSpeed;
+          gradDiv.currentY = Math.floor(gradDiv.currentY / itemHeight) * itemHeight;
+          // 信田フェーバーモード中は強制的に信田表示
+          if (gradDiv.feaverMode) {
+            gradDiv.slotDiv.innerHTML = '<div class="item">信田</div>';
+            gradDiv.currentY = 0;
+            gradDiv.feaverMode = false;
+          }
+          gradDiv.slotDiv.style.transform = `translateY(-${gradDiv.currentY}px)`;
+          gradDiv.stopped = true;
+          gradDiv.stopBtn.disabled = true;
+          checkAllStopped();
+        }
+      }
+      gradDiv.running = true;
+      gradDiv.animationFrameId = requestAnimationFrame(step);
+    }
+
   </script>
 </body>
 </html>
