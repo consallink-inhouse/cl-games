@@ -557,8 +557,6 @@
 
     // ===== メインシステム初期化 =====
     function initializeMainSystem() {
-
-      // 講師の重み付き配列作成
       weightedTeachers = [];
       instructors.forEach(instrObj => {
         const count = parseInt(instrObj.percent, 10);
@@ -569,14 +567,17 @@
       cycleHeight = weightedTeachers.length * itemHeight;
       gradsContainer.innerHTML = "";
       gradElements = [];
-      // 新卒エリアの各セル生成
-      newGrads.forEach(grad => {
+
+      newGrads.forEach((grad, index) => {
         const gradDiv = document.createElement("div");
         gradDiv.classList.add("gradContainer");
+        gradDiv.setAttribute("data-id", index); // ← ID付与
+
         const gradName = document.createElement("div");
         gradName.classList.add("gradName");
         gradName.textContent = grad;
         gradDiv.appendChild(gradName);
+
         const reelDiv = document.createElement("div");
         reelDiv.classList.add("reel");
         const slotDiv = document.createElement("div");
@@ -620,11 +621,11 @@
         gradsContainer.appendChild(gradDiv);
         gradElements.push(gradDiv);
 
-        stopBtn.addEventListener("click", function() {
+        stopBtn.addEventListener("click", function () {
           if (gradDiv.running) stopReel(gradDiv);
         });
       });
-      // 新卒数が3の倍数でなければ、空セルとして講師情報表示用セルを追加
+
       if (newGrads.length % 3 !== 0) {
         teacherInfoCell = document.createElement("div");
         teacherInfoCell.id = "teacherInfoCell";
@@ -807,25 +808,19 @@
         td1.textContent = gradDiv.querySelector(".gradName").textContent;
         const td2 = document.createElement("td");
 
-        let teacherName;
-        if (nobutaFeaverFlg) {
-          teacherName = "信田";
-        } else {
-          const index = Math.floor(gradDiv.currentY / itemHeight) % gradDiv.randomizedTeachers.length;
-          teacherName = gradDiv.randomizedTeachers[index];
-        }
-
-        td2.textContent = teacherName;
+        td2.textContent = gradDiv.assignedTeacher || "未設定";
         row.appendChild(td1);
         row.appendChild(td2);
         tbody.appendChild(row);
       });
+
       nobutaFeaverFlg = false;
       table.appendChild(tbody);
       resultList.innerHTML = "";
       resultList.appendChild(table);
       resultModal.style.display = "flex";
     }
+
 
     // ===== モーダル閉じ処理 =====
     function handleCloseModal() {
@@ -971,11 +966,13 @@
     });
 
     const originalDecelerateAndStop = decelerateAndStop;
+
     decelerateAndStop = function (gradDiv) {
       let duration = 1500;
       let startTime = null;
       let initialSpeed = gradDiv.speed;
       cancelAnimationFrame(gradDiv.animationFrameId);
+
       function step(timestamp) {
         if (!startTime) startTime = timestamp;
         let elapsed = timestamp - startTime;
@@ -987,27 +984,36 @@
           gradDiv.currentY += cycleHeight;
         }
         gradDiv.slotDiv.style.transform = `translateY(-${gradDiv.currentY}px)`;
+
         if (progress < 1) {
           gradDiv.animationFrameId = requestAnimationFrame(step);
         } else {
           gradDiv.running = false;
           gradDiv.speed = gradDiv.defaultSpeed;
           gradDiv.currentY = Math.floor(gradDiv.currentY / itemHeight) * itemHeight;
-          // 信田フェーバーモード中は強制的に信田表示
+
+          // 実際の .item を参照して講師名を取得
+          const items = gradDiv.slotDiv.querySelectorAll(".item");
+          const index = Math.floor(gradDiv.currentY / itemHeight) % items.length;
+          const assignedTeacher = gradDiv.feaverMode ? "信田" : items[index].innerText;
+          gradDiv.assignedTeacher = assignedTeacher;
+
           if (gradDiv.feaverMode) {
             gradDiv.slotDiv.innerHTML = '<div class="item">信田</div>';
             gradDiv.currentY = 0;
             gradDiv.feaverMode = false;
           }
+
           gradDiv.slotDiv.style.transform = `translateY(-${gradDiv.currentY}px)`;
           gradDiv.stopped = true;
           gradDiv.stopBtn.disabled = true;
           checkAllStopped();
         }
       }
+
       gradDiv.running = true;
       gradDiv.animationFrameId = requestAnimationFrame(step);
-    }
+    };
 
   </script>
 </body>
