@@ -129,7 +129,7 @@
       height: 100vh;
     }
     #container {
-      width: 700px;
+      width: 800px;
       padding: 20px;
       box-shadow: 0 0 20px rgba(0,0,0,0.5);
       border: 2px solid #fff;
@@ -174,6 +174,27 @@
       transform: scale(1.05);
     }
     .btn:disabled {
+      background: gray;
+      cursor: not-allowed;
+    }
+
+    .btnFeaver {
+      font-family: 'Press Start 2P', cursive;
+      padding: 10px 22px;
+      font-size: 10px;
+      background: linear-gradient(135deg, rgb(0, 0, 255), rgb(0, 128, 255));
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 15px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      margin: 5px;
+      transition: transform 0.2s;
+    }
+    .btnFeaver:hover {
+      transform: scale(1.05);
+    }
+    .btnFeaver:disabled {
       background: gray;
       cursor: not-allowed;
     }
@@ -262,6 +283,33 @@
       font-size: 28px;
       cursor: pointer;
     }
+    .tooltip-container {
+      position: relative;
+      display: inline-block;
+    }
+
+    .tooltip-container .tooltip-text {
+      visibility: hidden;
+      background-color: #f06 !important;
+      color: #fff;
+      text-align: center;
+      padding: 5px 8px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: 'Press Start 2P', cursive;
+      position: absolute;
+      z-index: 10;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .tooltip-container:hover .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
@@ -283,7 +331,16 @@
         <button id="startBtn" class="btn">START</button>
         <button id="allStopBtn" class="btn" disabled>ALL STOP</button>
         <button id="topBtn" class="btn">TOP</button>
-        <button id="nobutaBtn" class="btn" disabled>NOBUTA FEAVER</button>
+      </div>
+      <hr/>
+      <div id="buttonsContainer">
+        <button id="nobutaBtn1" class="btnFeaver" disabled>NOBUTA FEAVER</button>
+        <button id="nobutaBtn2" class="btnFeaver" disabled>YAMAMOTO FEAVER</button>
+        <button id="nobutaBtn3" class="btnFeaver" disabled>OHNO FEAVER</button>
+        <div class="tooltip-container">
+          <button id="nobutaBtn4" class="btnFeaver" disabled>OHTA FEAVER</button>
+          <div class="tooltip-text">メンテナンス中</div>
+        </div>
       </div>
       <div id="gradsContainer"></div>
     </div>
@@ -309,9 +366,10 @@
 
   <script>
 
-    const nobutaBtn = document.getElementById("nobutaBtn");
+    const nobutaBtn1 = document.getElementById("nobutaBtn1");
+    const nobutaBtn2 = document.getElementById("nobutaBtn2");
+    const nobutaBtn3 = document.getElementById("nobutaBtn3");
     let nobutaFeaverFlg = false;
-
 
     // ===== イージング関数 =====
     function easeInQuad(t) {
@@ -717,7 +775,9 @@
     startBtn.addEventListener("click", function() {
       startBtn.disabled = true;
       allStopBtn.disabled = false;
-      nobutaBtn.disabled = false;
+      nobutaBtn1.disabled = false;
+      nobutaBtn2.disabled = false;
+      nobutaBtn3.disabled = false;
 
       gradElements.forEach(gradDiv => {
         gradDiv.slotDiv.innerHTML = gradDiv.originalSlotHTML;
@@ -740,7 +800,9 @@
     // ===== ALL STOPボタン動作 =====
     allStopBtn.addEventListener("click", function() {
       allStopBtn.disabled = true;
-      nobutaBtn.disabled = true;
+      nobutaBtn1.disabled = true;
+      nobutaBtn2.disabled = true;
+      nobutaBtn3.disabled = true;
       let cumulativeDelay = 0;
       gradElements.forEach(gradDiv => {
         if (gradDiv.running) {
@@ -766,7 +828,9 @@
       if (gradElements.every(g => g.stopped)) {
         startBtn.disabled = false;
         allStopBtn.disabled = true;
-        nobutaBtn.disabled = true;
+        nobutaBtn1.disabled = true;
+        nobutaBtn2.disabled = true;
+        nobutaBtn3.disabled = true;
         showModal();
       }
     }
@@ -784,7 +848,9 @@
       });
       startBtn.disabled = false;
       allStopBtn.disabled = true;
-      nobutaBtn.disabled = true;
+      nobutaBtn1.disabled = true;
+      nobutaBtn2.disabled = true;
+      nobutaBtn3.disabled = true;
     }
 
     // ===== 結果モーダル表示 =====
@@ -891,17 +957,38 @@
     window.addEventListener("resize", resizeCanvas);
     resizeCanvas();
 
-    function createConfetti() {
+    function createConfetti(type = "default") {
       confettiParticles = [];
       for (let i = 0; i < 100; i++) {
+        let color, shape, size;
+
+        switch (type) {
+          case "yamamoto":
+            color = `hsl(${Math.random() * 360}, 100%, 70%)`;
+            shape = "star";
+            size = Math.random() * 8 + 8;
+            break;
+          case "ohno":
+            color = `hsl(${Math.random() * 360}, 100%, 75%)`;
+            shape = "heart";
+            size = Math.random() * 10 + 10;
+            break;
+          default:
+            color = `hsl(${Math.random() * 360}, 100%, 75%)`;
+            shape = "circle";
+            size = Math.random() * 6 + 4;
+            break;
+        }
+
         confettiParticles.push({
           x: Math.random() * confettiCanvas.width,
           y: Math.random() * confettiCanvas.height - confettiCanvas.height,
           speed: Math.random() * 3 + 2,
-          size: Math.random() * 6 + 4,
+          size,
           angle: Math.random() * 2 * Math.PI,
           rotationSpeed: Math.random() * 0.1 - 0.05,
-          color: `hsl(${Math.random() * 360}, 100%, 75%)`
+          color,
+          shape
         });
       }
     }
@@ -917,7 +1004,37 @@
         confettiCtx.rotate(p.angle);
         confettiCtx.fillStyle = p.color;
         confettiCtx.beginPath();
-        confettiCtx.arc(0, 0, p.size, 0, Math.PI * 2);
+
+        if (p.shape === "star") {
+          // 星形
+          for (let i = 0; i < 5; i++) {
+            const outer = p.size;
+            const inner = p.size / 2;
+            const angle = (i * 2 * Math.PI) / 5;
+            const x = Math.cos(angle) * outer;
+            const y = Math.sin(angle) * outer;
+            if (i === 0) {
+              confettiCtx.moveTo(x, y);
+            } else {
+              confettiCtx.lineTo(x, y);
+            }
+            confettiCtx.lineTo(
+              Math.cos(angle + Math.PI / 5) * inner,
+              Math.sin(angle + Math.PI / 5) * inner
+            );
+          }
+          confettiCtx.closePath();
+        } else if (p.shape === "heart") {
+          // ハート形
+          const size = p.size / 2;
+          confettiCtx.moveTo(0, -size);
+          confettiCtx.bezierCurveTo(size, -size * 1.5, size * 1.5, 0, 0, size);
+          confettiCtx.bezierCurveTo(-size * 1.5, 0, -size, -size * 1.5, 0, -size);
+        } else {
+          // 円（デフォルト）
+          confettiCtx.arc(0, 0, p.size, 0, Math.PI * 2);
+        }
+
         confettiCtx.fill();
         confettiCtx.restore();
       });
@@ -925,8 +1042,8 @@
 
     let confettiInterval = null;
 
-    function startConfetti(duration = 2000) {
-      createConfetti();
+    function startConfetti(type = "default", duration = 2000) {
+      createConfetti(type);
       clearInterval(confettiInterval);
       confettiInterval = setInterval(updateConfetti, 30);
       setTimeout(() => {
@@ -935,35 +1052,46 @@
       }, duration);
     }
 
-    // ===== NOBUTA FEAVERボタン動作 =====
-    nobutaBtn.addEventListener("click", function () {
-      nobutaBtn.disabled = true;
-      startBtn.disabled = true;
-      allStopBtn.disabled = true;
-      nobutaFeaverFlg = true;
-
-      // 花吹雪アニメーション開始
-      startConfetti(10000);
-
-      // リールはそのまま、停止時のみ表示を信田にするためフラグを立てる
-      gradElements.forEach(gradDiv => {
-        gradDiv.feaverMode = true;
-        gradDiv.stopped = false;
-        gradDiv.running = true;
-        gradDiv.stopBtn.disabled = true;
-        animateReel(gradDiv);
-      });
-
-      // 順に停止（2秒後から）※左上から順に止める
-      setTimeout(() => {
-        const orderedGrads = [...gradElements];
-        orderedGrads.forEach((gradDiv, index) => {
-          setTimeout(() => {
-            decelerateAndStop(gradDiv);
-          }, 300 * index);
-        });
-      }, 2000);
+    nobutaBtn1.addEventListener("click", function () {
+        nobuta("default");
     });
+    nobutaBtn2.addEventListener("click", function () {
+        nobuta("yamamoto");
+    });
+    nobutaBtn3.addEventListener("click", function () {
+        nobuta("ohno");
+    });
+
+    function nobuta(feaverType = "default") {
+        nobutaBtn1.disabled = true;
+        nobutaBtn2.disabled = true;
+        nobutaBtn3.disabled = true;
+        startBtn.disabled = true;
+        allStopBtn.disabled = true;
+        nobutaFeaverFlg = true;
+
+        // 花吹雪アニメーション開始（タイプ別）
+        startConfetti(feaverType, 10000);
+
+        // リールはそのまま、停止時のみ表示を信田にするためフラグを立てる
+        gradElements.forEach(gradDiv => {
+          gradDiv.feaverMode = true;
+          gradDiv.stopped = false;
+          gradDiv.running = true;
+          gradDiv.stopBtn.disabled = true;
+          animateReel(gradDiv);
+        });
+
+        // 順に停止（2秒後から）※左上から順に止める
+        setTimeout(() => {
+          const orderedGrads = [...gradElements];
+          orderedGrads.forEach((gradDiv, index) => {
+            setTimeout(() => {
+              decelerateAndStop(gradDiv);
+            }, 300 * index);
+          });
+        }, 2000);
+    }
 
     const originalDecelerateAndStop = decelerateAndStop;
 
