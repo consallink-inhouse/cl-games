@@ -5,6 +5,7 @@
   <title>IT Typing Game Challenge</title>
   <!-- おしゃれなレトロフォント「Press Start 2P」を利用 -->
   <link href="https://fonts.googleapis.com/css?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP&display=swap" rel="stylesheet">
   <style>
     body {
       margin: 0;
@@ -77,7 +78,7 @@
     /* TOPボタン（COMPLETE画面で表示） */
     #topButton {
       position: absolute;
-      left: 350px;
+      left: 45%;
       top: 360px;
       width: 150px;
       height: 40px;
@@ -112,9 +113,9 @@
     const ctx = canvas.getContext("2d");
 
     // ゲームエリア（左側）と情報表示エリア（右側）の設定
-    const GAME_WIDTH = 700;
-    const INFO_WIDTH = 200;
-    const CANVAS_WIDTH = GAME_WIDTH + INFO_WIDTH; // 850
+    const GAME_WIDTH = 650;
+    const INFO_WIDTH = 350;
+    const CANVAS_WIDTH = GAME_WIDTH + INFO_WIDTH;
     const CANVAS_HEIGHT = 600;
 
     // ゲーム状態用変数
@@ -129,6 +130,7 @@
     let bonusSum = 0;        // 各問題ごとの入力速度ボーナスの合計
     let mistakeCount = 0;    // タイピングミスの総数
     let finalScore = 0;      // 最終スコア
+    let currentExplanation = "";
 
     // 落下位置と速度
     let wordY = 0;
@@ -140,45 +142,273 @@
     // 難易度別50問の単語・フレーズリスト
     const wordLists = {
       "1": [
-        "app", "bug", "code", "git", "api", "sql", "cpu", "ram", "bit", "byte",
-        "loop", "node", "data", "port", "ping", "web", "os", "gui", "cmd", "cli",
-        "dev", "sys", "io", "sdk", "ide", "hex", "bot", "log", "boot", "file",
-        "cache", "chip", "disk", "core", "rom", "bus", "nibble", "bytecode", "usb", "applet",
-        "script", "link", "driver", "modem", "pixel", "thread", "bugfix", "compile", "binary", "terminal"
+        { word: "app", explanation: "スマートフォンやPCで動作するアプリケーション。" },
+        { word: "bug", explanation: "プログラム上の不具合やエラー。" },
+        { word: "code", explanation: "コンピュータに命令を与えるための記述。" },
+        { word: "git", explanation: "ソースコードの変更履歴を管理するシステム。" },
+        { word: "api", explanation: "異なるアプリ間で機能を共有する仕組み。" },
+        { word: "sql", explanation: "データベースを操作するための言語。" },
+        { word: "cpu", explanation: "コンピュータの中心的な処理装置。" },
+        { word: "ram", explanation: "作業中のデータを一時的に保持するメモリ。" },
+        { word: "bit", explanation: "情報の最小単位（0か1）を表す。" },
+        { word: "byte", explanation: "8ビットで構成されるデータの単位。" },
+        { word: "data", explanation: "処理や分析の対象となる情報。" },
+        { word: "web", explanation: "インターネット上の情報閲覧システム。" },
+        { word: "os", explanation: "コンピュータを動かす基本ソフトウェア。" },
+        { word: "gui", explanation: "アイコンなど視覚的に操作できる画面構成。" },
+        { word: "cli", explanation: "コマンド入力によって操作する仕組み。" },
+        { word: "sdk", explanation: "アプリ開発に必要なツールセット。" },
+        { word: "ide", explanation: "コード編集やデバッグができる開発環境。" },
+        { word: "log", explanation: "操作履歴やエラー記録を示すデータ。" },
+        { word: "boot", explanation: "OSやシステムを起動すること。" },
+        { word: "file", explanation: "データを保存する単位。" },
+        { word: "link", explanation: "他のページやリソースに接続する手段。" },
+        { word: "disk", explanation: "データを保存する物理メディア。" },
+        { word: "core", explanation: "CPUの中の計算を行う部分。" },
+        { word: "rom", explanation: "読み取り専用のメモリ。消えない記憶領域。" },
+        { word: "bus", explanation: "コンピュータ内部でのデータの通り道。" },
+        { word: "bytecode", explanation: "中間コードとして処理されるプログラム形式。" },
+        { word: "usb", explanation: "周辺機器と接続するための汎用規格。" },
+        { word: "driver", explanation: "ハードウェアを制御するソフトウェア。" },
+        { word: "cache", explanation: "処理を高速化するための一時記憶領域。" },
+        { word: "cloud", explanation: "インターネット経由で提供されるサービス。" },
+        { word: "html", explanation: "Webページを構成するマークアップ言語。" },
+        { word: "http", explanation: "Web上で通信するためのプロトコル。" },
+        { word: "tcp", explanation: "通信の信頼性を保証するプロトコル。" },
+        { word: "ip", explanation: "機器を識別するためのネットワークアドレス。" },
+        { word: "wifi", explanation: "無線でネット接続する技術。" },
+        { word: "ssid", explanation: "Wi-Fiネットワークの識別名。" },
+        { word: "vpn", explanation: "安全に通信するための仮想ネットワーク。" },
+        { word: "lan", explanation: "構内で使用するローカルネットワーク。" },
+        { word: "wan", explanation: "広域にまたがるネットワーク。" },
+        { word: "mail", explanation: "インターネットで送受信される電子的な手紙。" },
+        { word: "spam", explanation: "迷惑な電子メール。" },
+        { word: "cookie", explanation: "Webの設定情報などを一時保存する仕組み。" },
+        { word: "token", explanation: "認証などに使われる一時的な識別情報。" },
+        { word: "cloud", explanation: "インターネットを通じて提供されるリソース。" },
+        { word: "router", explanation: "ネットワーク間のデータを中継する装置。" },
+        { word: "modem", explanation: "信号を変換して通信するための機器。" },
+        { word: "form", explanation: "ユーザー入力用のWeb上の部品。" },
+        { word: "json", explanation: "データを構造化して表現するフォーマット。" },
+        { word: "yaml", explanation: "人が読みやすいデータ記述言語。" },
+        { word: "lint", explanation: "コードの構文チェックツール。" },
+        { word: "loop", explanation: "同じ処理を繰り返す制御構文。" }
       ],
       "2": [
-        "server", "client", "debug", "linux", "router", "proxy", "branch", "commit", "version", "execute",
-        "virtual", "kernel", "socket", "encryption", "decryption", "module", "object", "class", "method", "function",
-        "variable", "iteration", "string", "boolean", "integer", "float", "double", "pointer", "reference", "exception",
-        "handler", "array", "list", "stack", "queue", "tree", "graph", "loopback", "algorithm", "network",
-        "protocol", "bandwidth", "latency", "throughput", "middleware", "virtualization", "container", "deployment", "integration", "firewall"
+        { word: "server", explanation: "サービスや情報を提供する側のコンピュータ。" },
+        { word: "client", explanation: "サービスを受け取る利用者側のコンピュータ。" },
+        { word: "router", explanation: "ネットワーク同士を中継・接続する装置。" },
+        { word: "switch", explanation: "ネットワーク機器同士を接続する装置。" },
+        { word: "cookie", explanation: "Webサイトの情報を一時保存する仕組み。" },
+        { word: "domain", explanation: "Webサイトの住所となる名前（例: google.com）。" },
+        { word: "backup", explanation: "データを万一に備えて複製・保存すること。" },
+        { word: "malware", explanation: "悪意のあるソフトウェアの総称。" },
+        { word: "firewall", explanation: "外部からの不正アクセスを防ぐ仕組み。" },
+        { word: "browser", explanation: "Webサイトを閲覧するためのソフト。" },
+        { word: "phishing", explanation: "偽サイトなどで情報を盗む詐欺手法。" },
+        { word: "spoofing", explanation: "他人になりすましてアクセスする攻撃。" },
+        { word: "encoding", explanation: "データを特定の形式に変換する処理。" },
+        { word: "decoding", explanation: "エンコードされたデータを元に戻す処理。" },
+        { word: "protocol", explanation: "通信のルールや手順のこと。" },
+        { word: "database", explanation: "大量のデータを効率よく管理する仕組み。" },
+        { word: "frontend", explanation: "ユーザーの目に触れるWeb画面側の処理。" },
+        { word: "backend", explanation: "Webシステムの裏側で動く処理。" },
+        { word: "security", explanation: "データやシステムを守るための対策。" },
+        { word: "password", explanation: "本人確認のための秘密の文字列。" },
+        { word: "hardware", explanation: "コンピュータの物理的な部品全般。" },
+        { word: "software", explanation: "コンピュータ上で動作するプログラム。" },
+        { word: "compiler", explanation: "ソースコードを実行形式に変換するツール。" },
+        { word: "variable", explanation: "データを一時的に保持する入れ物。" },
+        { word: "function", explanation: "処理をひとまとまりにしたもの。" },
+        { word: "boolean", explanation: "真（true）か偽（false）の値を表す型。" },
+        { word: "integer", explanation: "小数点のない数（整数）を表す型。" },
+        { word: "float", explanation: "小数を扱う数値型。" },
+        { word: "library", explanation: "便利な機能をまとめたプログラム群。" },
+        { word: "package", explanation: "複数の機能やモジュールのまとまり。" },
+        { word: "command", explanation: "コンピュータに指示を出すための命令文。" },
+        { word: "session", explanation: "接続中の一連の操作や状態のこと。" },
+        { word: "network", explanation: "コンピュータ同士を接続する仕組み。" },
+        { word: "version", explanation: "ソフトウェアなどの更新履歴や段階。" },
+        { word: "compile", explanation: "コードを実行可能な形式に変換すること。" },
+        { word: "execute", explanation: "プログラムを実際に動かすこと。" },
+        { word: "command", explanation: "キーボードなどで操作する指示。" },
+        { word: "address", explanation: "IPなどの機器やデータの位置情報。" },
+        { word: "gateway", explanation: "異なるネットワーク間の橋渡し装置。" },
+        { word: "latency", explanation: "データの応答にかかる遅延時間。" },
+        { word: "bandwidth", explanation: "通信できる最大のデータ量。" },
+        { word: "throughput", explanation: "実際に通信できたデータの量。" },
+        { word: "syntax", explanation: "文法や構文のルール。" },
+        { word: "runtime", explanation: "プログラムが実行されている時間帯。" },
+        { word: "loopback", explanation: "自身のネットワーク機能の確認方法。" },
+        { word: "sandbox", explanation: "安全にテストするための仮想環境。" },
+        { word: "license", explanation: "使用許諾や契約に関する文書。" },
+        { word: "monitor", explanation: "画面出力装置。画面を表示する機器。" },
+        { word: "pointer", explanation: "メモリ上のアドレスを扱う変数。" },
+        { word: "storage", explanation: "データを長期間保存する装置や仕組み。" }
       ],
       "3": [
-        "protocol", "framework", "encryption", "algorithm", "firewall", "repository", "virtualization", "compiler", "debugger", "middleware",
-        "authentication", "authorization", "serialization", "deserialization", "concurrency", "multithreading", "synchronization", "asynchronous", "deployment", "integration",
-        "configuration", "optimization", "benchmarking", "refactoring", "singleton", "polymorphism", "inheritance", "encapsulation", "abstraction", "interface",
-        "dependency", "injection", "RESTful", "microservice", "scalability", "robustness", "latency", "throughput", "bandwidth", "distributed",
-        "transaction", "loadbalancing", "clustering", "sharding", "replication", "indexing", "query", "schema", "normalization", "denormalization"
+        { word: "encryption", explanation: "情報を読めない形式に変換して保護する技術。" },
+        { word: "decryption", explanation: "暗号化された情報を元に戻すこと。" },
+        { word: "firewall", explanation: "外部の不正アクセスを防ぐ仕組み。" },
+        { word: "algorithm", explanation: "問題を解決するための手順や計算方法。" },
+        { word: "repository", explanation: "ソースコードなどを保管・管理する場所。" },
+        { word: "virtualization", explanation: "物理機器を仮想的に扱う技術。" },
+        { word: "authentication", explanation: "本人確認を行うこと。" },
+        { word: "authorization", explanation: "操作権限があるか確認すること。" },
+        { word: "serialization", explanation: "データを保存や送信可能な形式に変換すること。" },
+        { word: "multithreading", explanation: "同時に複数の処理を並列実行すること。" },
+        { word: "asynchronous", explanation: "非同期。処理の待ちをせず並行する方式。" },
+        { word: "deployment", explanation: "システムやアプリを実際の環境に配置すること。" },
+        { word: "integration", explanation: "複数の機能やシステムを連携させること。" },
+        { word: "refactoring", explanation: "動作を変えずにコードを改善すること。" },
+        { word: "singleton", explanation: "インスタンスが一つだけ生成される設計パターン。" },
+        { word: "polymorphism", explanation: "同じ命令でも異なる動作を実現する機能。" },
+        { word: "encapsulation", explanation: "データを外部から隠して操作する仕組み。" },
+        { word: "inheritance", explanation: "クラスの機能を他のクラスが受け継ぐこと。" },
+        { word: "abstraction", explanation: "重要な情報だけを取り出す考え方。" },
+        { word: "interface", explanation: "機能を定義する枠組みや接点。" },
+        { word: "dependency", explanation: "ある機能が他の機能に依存している関係。" },
+        { word: "container", explanation: "アプリを実行する軽量な仮想環境。" },
+        { word: "scalability", explanation: "システムを大規模化しやすい能力。" },
+        { word: "robustness", explanation: "不具合が起きにくい安定性の高さ。" },
+        { word: "transaction", explanation: "一連の処理をまとめて確実に実行する単位。" },
+        { word: "clustering", explanation: "複数台で処理を分散し、高可用性を実現する構成。" },
+        { word: "replication", explanation: "データを複製して保持する仕組み。" },
+        { word: "indexing", explanation: "検索を高速にするためのデータ構造の作成。" },
+        { word: "normalization", explanation: "データの重複を避けて整理する手法。" },
+        { word: "denormalization", explanation: "検索性能向上のため意図的に正規化を崩すこと。" },
+        { word: "middleware", explanation: "アプリとOSの間で動く補助ソフト。" },
+        { word: "loadbalancing", explanation: "複数のサーバに処理を均等に分散すること。" },
+        { word: "sharding", explanation: "データベースを複数に分けて保存する方法。" },
+        { word: "microservice", explanation: "機能ごとに独立した小さなサービス単位の設計。" },
+        { word: "scaffolding", explanation: "開発初期に自動生成されるコード群。" },
+        { word: "rollback", explanation: "処理を途中でやめて元に戻す操作。" },
+        { word: "monitoring", explanation: "システムの状態を監視・記録すること。" },
+        { word: "observability", explanation: "内部状態を外部から観測できる能力。" },
+        { word: "query", explanation: "データベースへの検索・操作指示。" },
+        { word: "schema", explanation: "データベースの構造や定義。" },
+        { word: "hashing", explanation: "データを短い固定長に変換する処理。" },
+        { word: "session", explanation: "ユーザーとの接続中に維持される状態。" },
+        { word: "latency", explanation: "データの送信～受信までの時間の遅れ。" },
+        { word: "throughput", explanation: "単位時間あたりの処理量。" },
+        { word: "payload", explanation: "通信における本体データ部分。" },
+        { word: "benchmark", explanation: "性能を評価するための試験。" },
+        { word: "containerize", explanation: "アプリをコンテナ化して実行すること。" },
+        { word: "scaffold", explanation: "アプリの土台となる初期構造。" },
+        { word: "algorithmic", explanation: "アルゴリズムに関するもの。" },
+        { word: "debugging", explanation: "不具合の原因を調べて修正する作業。" },
+        { word: "codebase", explanation: "アプリケーションのソースコード全体。" }
       ],
       "4": [
-        "synchronization", "multithreading", "asynchronous", "architecture", "microservices", "containerization", "distributed system", "concurrency control", "deadlock", "latency optimization",
-        "scalability", "elastic computing", "load balancing", "virtualization", "serverless computing", "data replication", "fault tolerance", "high availability", "disaster recovery", "data pipeline",
-        "stream processing", "event-driven", "message queue", "broker", "API gateway", "service mesh", "orchestration", "infrastructure as code", "continuous integration", "continuous deployment",
-        "DevOps", "monitoring", "observability", "log aggregation", "performance tuning", "system call", "kernel mode", "user mode", "buffer overflow", "memory leak",
-        "garbage collection", "runtime environment", "code injection", "dependency management", "resource allocation", "sandboxing", "multi-factor authentication", "zero trust security", "hyperconvergence", "container orchestration"
+        { word: "synchronization", explanation: "複数の処理をタイミングを合わせて動作させる技術。" },
+        { word: "multithreading", explanation: "一つのプログラム内で複数の処理を同時に行う技術。" },
+        { word: "asynchronous", explanation: "処理の完了を待たずに次の処理を進める方式。" },
+        { word: "microservices", explanation: "機能ごとに独立した小さなサービスの集合で構成されたアーキテクチャ。" },
+        { word: "containerization", explanation: "アプリや環境をコンテナにまとめて実行する技術。" },
+        { word: "distributed system", explanation: "複数のコンピュータが協調して処理するシステム構成。" },
+        { word: "concurrency control", explanation: "複数のデータ処理が競合しないように制御する技術。" },
+        { word: "latency optimization", explanation: "応答遅延を減らすための工夫や技術。" },
+        { word: "elastic computing", explanation: "負荷に応じてリソースを自動的に拡張・縮小する技術。" },
+        { word: "load balancing", explanation: "複数のサーバへ処理を分散して負荷を均等にする手法。" },
+        { word: "serverless computing", explanation: "サーバの管理なしにコードを実行できるクラウドの仕組み。" },
+        { word: "data replication", explanation: "データを複数箇所に複製して保持する技術。" },
+        { word: "fault tolerance", explanation: "一部の故障が起きても全体が正常に動作する能力。" },
+        { word: "high availability", explanation: "長時間にわたってサービスを提供し続ける能力。" },
+        { word: "disaster recovery", explanation: "災害時でも迅速にシステム復旧するための仕組み。" },
+        { word: "data pipeline", explanation: "データの収集・加工・保存までの一連の処理の流れ。" },
+        { word: "stream processing", explanation: "データの流れをリアルタイムで処理する手法。" },
+        { word: "event-driven", explanation: "イベントの発生に応じて処理を行う設計方式。" },
+        { word: "message queue", explanation: "非同期通信のためのメッセージの一時保存システム。" },
+        { word: "message broker", explanation: "メッセージを受け渡す仲介役のソフトウェア。" },
+        { word: "API gateway", explanation: "複数のAPIへの入り口となる一元管理ポイント。" },
+        { word: "service mesh", explanation: "マイクロサービス間通信を制御・管理する層。" },
+        { word: "orchestration", explanation: "複数のサービスやコンテナを自動的に連携・管理すること。" },
+        { word: "infrastructure as code", explanation: "インフラ環境をコードで定義し管理する手法。" },
+        { word: "continuous integration", explanation: "変更を自動で統合・テストする開発手法。" },
+        { word: "continuous deployment", explanation: "テスト通過後、自動で本番環境へリリースする仕組み。" },
+        { word: "DevOps", explanation: "開発（Dev）と運用（Ops）の連携を強化する考え方。" },
+        { word: "observability", explanation: "システムの内部状態を外部から把握する能力。" },
+        { word: "log aggregation", explanation: "複数のログを一元管理・分析する仕組み。" },
+        { word: "performance tuning", explanation: "システムの性能を最適化する作業。" },
+        { word: "system call", explanation: "アプリケーションからOSに処理を依頼する仕組み。" },
+        { word: "kernel mode", explanation: "OSの中核部分が動作する権限の高い状態。" },
+        { word: "user mode", explanation: "一般のアプリが動作する制限付きのモード。" },
+        { word: "buffer overflow", explanation: "メモリ領域を超えてデータが書き込まれる不具合。" },
+        { word: "memory leak", explanation: "使い終えたメモリが解放されず残り続ける不具合。" },
+        { word: "garbage collection", explanation: "不要になったメモリを自動的に回収する機能。" },
+        { word: "runtime environment", explanation: "アプリを動作させるために必要な環境。" },
+        { word: "code injection", explanation: "悪意あるコードを外部から実行させる攻撃。" },
+        { word: "resource allocation", explanation: "CPUやメモリなどを効率的に割り当てること。" },
+        { word: "sandboxing", explanation: "安全のためアプリを仮想空間内に閉じ込めて実行する仕組み。" },
+        { word: "multi-factor authentication", explanation: "2つ以上の方法で行う本人確認手段。" },
+        { word: "zero trust security", explanation: "全てのアクセスを常に検証する最新のセキュリティモデル。" },
+        { word: "hyperconvergence", explanation: "ストレージや仮想化を一体化した次世代型インフラ。" },
+        { word: "container orchestration", explanation: "複数コンテナを自動管理・連携する機能。" },
+        { word: "distributed ledger", explanation: "中央管理者のいない分散型の台帳技術。" },
+        { word: "blockchain", explanation: "取引履歴を時系列に記録する分散型技術。" },
+        { word: "zero-day attack", explanation: "公開前の脆弱性を悪用する攻撃手法。" },
+        { word: "penetration testing", explanation: "システムに侵入できるかを試すセキュリティ検査。" },
+        { word: "incident response", explanation: "セキュリティ事故に対応する体制や手順。" },
+        { word: "threat intelligence", explanation: "攻撃手法や脅威に関する情報収集・分析。" },
+        { word: "cloud native", explanation: "クラウド環境に最適化された設計思想。" }
       ],
-      "5": [
-        "public static void main", "console.log('Hello World')", "if (condition) { }", "try { } catch (Exception e) { }", "SELECT * FROM users;", "git commit -m 'Initial commit'", "while(true) { break; }", "function prototype", "interface implementation", "object oriented programming",
-        "asynchronous callback", "promise.then().catch()", "dependency injection container", "microservices architecture", "RESTful API design", "MVC pattern", "singleton pattern", "factory method", "observer pattern", "command line interface",
-        "integrated development environment", "virtual private network", "cloud computing platform", "load balancing algorithm", "distributed ledger technology", "blockchain protocol", "cryptographic hash function", "recursive function call", "binary search algorithm", "machine learning model",
-        "neural network architecture", "data mining technique", "big data analytics", "container orchestration", "continuous integration pipeline", "agile software development", "test driven development", "behavior driven development", "object relational mapping", "software as a service",
-        "platform as a service", "infrastructure as a service", "end-to-end encryption", "wireless communication protocol", "internet of things", "augmented reality", "virtual reality", "quantum computing algorithm", "distributed caching system", "real-time data processing"
-      ]
-    };
+        "5": [
+          { word: "microservices architecture", explanation: "小規模な独立サービスの集合による設計手法。" },
+          { word: "zero trust security", explanation: "全てのアクセスを検証する最新のセキュリティモデル。" },
+          { word: "multi-factor authentication", explanation: "複数の方法を組み合わせた本人確認方式。" },
+          { word: "cloud native", explanation: "クラウド環境に最適化された設計思想。" },
+          { word: "machine learning model", explanation: "データから学習して予測や分類を行う仕組み。" },
+          { word: "neural network", explanation: "脳の構造を模したAIアルゴリズムの基本単位。" },
+          { word: "natural language processing", explanation: "人間の言葉をコンピュータで理解・処理する技術。" },
+          { word: "continuous integration", explanation: "頻繁なコード統合と自動テストを行う開発手法。" },
+          { word: "continuous deployment", explanation: "自動で本番環境にデプロイする開発工程。" },
+          { word: "infrastructure as code", explanation: "インフラをコードで定義・管理する方法。" },
+          { word: "platform as a service", explanation: "アプリ実行環境を提供するクラウドサービス（PaaS）。" },
+          { word: "software as a service", explanation: "ネット経由で利用するソフトウェア（SaaS）。" },
+          { word: "infrastructure as a service", explanation: "仮想サーバなどを提供する基盤型サービス（IaaS）。" },
+          { word: "observability", explanation: "システムの内部状態を外部から把握できる能力。" },
+          { word: "incident response", explanation: "セキュリティインシデントに対応する体制と手順。" },
+          { word: "penetration testing", explanation: "疑似攻撃で脆弱性を確認するセキュリティ検査。" },
+          { word: "threat intelligence", explanation: "攻撃手法や脅威情報を収集・分析する活動。" },
+          { word: "distributed ledger technology", explanation: "分散型で信頼性を確保する台帳管理技術。" },
+          { word: "blockchain", explanation: "改ざん耐性を持つ分散型の記録技術。" },
+          { word: "container orchestration", explanation: "複数のコンテナを自動で管理・制御する仕組み。" },
+          { word: "data lake", explanation: "構造化・非構造化データを一括で保管する巨大な領域。" },
+          { word: "data warehouse", explanation: "分析用に整理・統合されたデータ保存システム。" },
+          { word: "cloud computing", explanation: "インターネット経由でリソースを提供する技術。" },
+          { word: "edge computing", explanation: "端末側でデータ処理を行い応答性を高める技術。" },
+          { word: "quantum computing", explanation: "量子力学を用いた次世代の超高速計算技術。" },
+          { word: "data governance", explanation: "データの管理方針や品質を保つための仕組み。" },
+          { word: "privacy policy", explanation: "個人情報の取扱いに関する企業の方針。" },
+          { word: "digital transformation", explanation: "ITによる業務・ビジネスの革新。" },
+          { word: "data sovereignty", explanation: "データが保存される国の法律に従う原則。" },
+          { word: "security operations center", explanation: "セキュリティ監視を行う専門組織（SOC）。" },
+          { word: "identity access management", explanation: "ユーザーの認証とアクセス制御を管理する仕組み。" },
+          { word: "business continuity plan", explanation: "災害時などでも事業を継続するための計画（BCP）。" },
+          { word: "zero-day vulnerability", explanation: "対策が公開される前の未修正の脆弱性。" },
+          { word: "service level agreement", explanation: "サービス品質に関する合意事項（SLA）。" },
+          { word: "data breach", explanation: "機密データが外部に漏れるセキュリティ事故。" },
+          { word: "compliance management", explanation: "法律や規則の順守状況を管理する体制。" },
+          { word: "IT asset management", explanation: "ハードウェアやライセンスを一元管理する業務。" },
+          { word: "capacity planning", explanation: "将来の負荷に備えてリソースを見積もる活動。" },
+          { word: "digital certificate", explanation: "電子的な本人証明を行うデジタル署名付き証明書。" },
+          { word: "identity provider", explanation: "ログイン情報などを一元管理する外部サービス（IdP）。" },
+          { word: "federated identity", explanation: "異なるサービス間での共通ID認証の仕組み。" },
+          { word: "access token", explanation: "認可されたアクセスを示す一時的なキー情報。" },
+          { word: "data loss prevention", explanation: "機密データの外部流出を防止する対策。" },
+          { word: "information leakage", explanation: "意図しない形での情報漏えい。" },
+          { word: "security audit", explanation: "セキュリティの有効性を評価・監査すること。" },
+          { word: "configuration management", explanation: "システム設定の変更や状態を管理する仕組み。" },
+          { word: "disaster recovery plan", explanation: "災害時のシステム復旧手順や体制をまとめた計画。" },
+          { word: "change management", explanation: "システムや業務の変更を計画的に実施する管理手法。" },
+          { word: "vulnerability assessment", explanation: "脆弱性の有無を洗い出して評価する工程。" }
+        ]
+      };
+
 
     // 50問の中から重複なく20問をランダムに選抜
-    function selectQuestions(wordArray) {
-      const copy = wordArray.slice();
+    function selectQuestions(wordObjectArray) {
+      const copy = wordObjectArray.slice();
       const selected = [];
       for (let i = 0; i < 20; i++) {
         const index = Math.floor(Math.random() * copy.length);
@@ -189,11 +419,13 @@
 
     // 現在の問題をセットする
     function setCurrentWord() {
-      currentWord = questionList[questionIndex];
+      currentWord = questionList[questionIndex].word;
+      currentExplanation = questionList[questionIndex].explanation;
       currentInput = "";
       questionStartTime = Date.now();
-      wordY = 0; // 落下位置初期化
+      wordY = 0;
     }
+
 
     // ヘルパー関数：指定幅でテキストを折り返す（各行の文字列と文字インデックス範囲を返す）
     function getWrappedLines(ctx, text, maxWidth) {
@@ -202,7 +434,7 @@
       let line = "";
       for (let i = 0; i < text.length; i++) {
         let testLine = line + text[i];
-        if (ctx.measureText(testLine).width > maxWidth && line !== "") {
+        if (ctx.measureText(testLine).width > (maxWidth / 1.5) && line !== "") {
           lines.push({ text: line, start: lineStart, end: i });
           line = text[i];
           lineStart = i;
@@ -240,27 +472,31 @@
     // 描画処理
     function draw() {
       ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-      
+
       // 左側：ゲームエリア背景
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, GAME_WIDTH, CANVAS_HEIGHT);
+
       // 右側：情報エリア背景
       ctx.fillStyle = "#222";
       ctx.fillRect(GAME_WIDTH, 0, INFO_WIDTH, CANVAS_HEIGHT);
-      
+
       if (!gameFinished) {
         // 落下中の問題（折り返し対応）
         ctx.font = "24px 'Press Start 2P'";
         const lines = getWrappedLines(ctx, currentWord, GAME_WIDTH);
-        const lineHeight = 30; // 行間
+        const lineHeight = 30;
         const typedCount = currentInput.length;
+
         for (let i = 0; i < lines.length; i++) {
           const lineObj = lines[i];
           const lineText = lineObj.text;
           const x = (GAME_WIDTH - ctx.measureText(lineText).width) / 2;
           const y = wordY + i * lineHeight;
+
           let typedPart = "";
           let remainingPart = "";
+
           if (typedCount <= lineObj.start) {
             remainingPart = lineText;
           } else if (typedCount >= lineObj.end) {
@@ -270,25 +506,26 @@
             typedPart = lineText.substring(0, splitIndex);
             remainingPart = lineText.substring(splitIndex);
           }
+
           ctx.fillStyle = "lime";
           ctx.fillText(typedPart, x, y);
           const typedWidth = ctx.measureText(typedPart).width;
           ctx.fillStyle = "white";
           ctx.fillText(remainingPart, x + typedWidth, y);
         }
-        
-        // 右側 情報エリア（1行表示、タイトルラベルは黄色、数値は白）
+
+        // 右側 情報エリアの情報表示
         ctx.font = "14px 'Press Start 2P'";
         let infoX = GAME_WIDTH + 10;
         let lineY = 30;
-        
+
         // Q
         ctx.fillStyle = "yellow";
         const qLabel = "Q: ";
         ctx.fillText(qLabel, infoX, lineY);
         ctx.fillStyle = "white";
         ctx.fillText((questionIndex + 1) + "/20", infoX + ctx.measureText(qLabel).width, lineY);
-        
+
         // Time
         lineY += 30;
         ctx.fillStyle = "yellow";
@@ -297,7 +534,7 @@
         ctx.fillStyle = "white";
         const elapsedTime = ((Date.now() - gameStartTime) / 1000).toFixed(2) + "s";
         ctx.fillText(elapsedTime, infoX + ctx.measureText(timeLabel).width, lineY);
-        
+
         // Bonus
         lineY += 30;
         ctx.fillStyle = "yellow";
@@ -305,7 +542,7 @@
         ctx.fillText(bonusLabel, infoX, lineY);
         ctx.fillStyle = "white";
         ctx.fillText(bonusSum, infoX + ctx.measureText(bonusLabel).width, lineY);
-        
+
         // Miss
         lineY += 30;
         ctx.fillStyle = "yellow";
@@ -313,22 +550,31 @@
         ctx.fillText(missLabel, infoX, lineY);
         ctx.fillStyle = "white";
         ctx.fillText(mistakeCount, infoX + ctx.measureText(missLabel).width, lineY);
-      } 
-      else {
-        // ゲーム終了時：オーバーレイ表示
+
+        // 解説表示（EXPLAIN）
+        ctx.font = "16px 'Press Start 2P'";
+        ctx.fillStyle = "green";
+        ctx.fillText("EXPLAIN:", infoX, lineY += 40);
+        ctx.fillStyle = "white";
+        const explanationLines = getWrappedLines(ctx, currentExplanation, INFO_WIDTH - 20);
+        for (let i = 0; i < explanationLines.length; i++) {
+          ctx.fillText(explanationLines[i].text, infoX, lineY + (i + 1) * 18);
+        }
+      } else {
+        // ゲーム終了時の表示
         ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-        
+
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        
+
         ctx.fillStyle = "yellow";
         ctx.font = "40px 'Press Start 2P'";
         ctx.fillText("COMPLETE", CANVAS_WIDTH / 2, (CANVAS_HEIGHT / 2) - 50);
-        
+
         ctx.font = "30px 'Press Start 2P'";
         ctx.fillText("Score: " + finalScore, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-        
+
         ctx.textAlign = "start";
         ctx.textBaseline = "alphabetic";
       }
@@ -347,6 +593,18 @@
       document.getElementById("topButton").style.display = "block";
     }
 
+    function nextQuestion() {
+      const questionTime = (Date.now() - questionStartTime) / 1000;
+      const questionBonus = Math.max(0, Math.round((3 - questionTime) * 10));
+      bonusSum += questionBonus;
+      questionIndex++;
+      if (questionIndex >= 20) {
+        finishGame();
+      } else {
+        setCurrentWord();
+      }
+    }
+
     // キー入力処理
     document.addEventListener("keydown", (e) => {
       if (!gameStarted || gameFinished) return;
@@ -357,15 +615,7 @@
         if (currentWord[currentInput.length].toLowerCase() === e.key.toLowerCase()) {
           currentInput += e.key;
           if (currentInput === currentWord) {
-            const questionTime = (Date.now() - questionStartTime) / 1000;
-            const questionBonus = Math.max(0, Math.round((3 - questionTime) * 10));
-            bonusSum += questionBonus;
-            questionIndex++;
-            if (questionIndex >= 20) {
-              finishGame();
-            } else {
-              setCurrentWord();
-            }
+            nextQuestion();
           }
         } else {
           mistakeCount++;
