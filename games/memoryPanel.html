@@ -53,6 +53,7 @@
       width: 100%;
       height: 100%;
       backface-visibility: hidden;
+      box-sizing: border-box;
     }
     .card-front {
       transform: rotateY(180deg);
@@ -104,7 +105,6 @@
     }
     #resultScreen h2 {
       margin-bottom: 20px;
-      white-space: pre-wrap;
       text-align: center;
     }
     /* リスタートボタン */
@@ -121,6 +121,44 @@
     }
     #restartButton:hover {
       transform: scale(1.05);
+    }
+    .split {
+      display: inline-block;
+      opacity: 0;
+      transform: translateY(0);
+      animation: appearSplit 1s ease-out forwards;
+    }
+
+    .split.top {
+      transform: translateY(-50px);
+      animation-delay: 0.2s;
+    }
+
+    .split.bottom {
+      transform: translateY(50px);
+      animation-delay: 0.4s;
+    }
+
+    .attempt-text {
+      display: inline-block;
+      margin-top: 20px;
+      font-size: 14px;
+      opacity: 0;
+      animation: fadeInAttempt 1s ease-out forwards;
+      animation-delay: 0.8s;
+    }
+
+    @keyframes fadeInAttempt {
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes appearSplit {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
   </style>
 </head>
@@ -180,7 +218,7 @@
         const randomIndex = Math.floor(Math.random() * available.length);
         selectedImages.push(available.splice(randomIndex, 1)[0]);
       }
-      
+
       // 選んだ画像を2枚ずつ用意（計16枚）しシャッフル
       let pairedImages = [...selectedImages, ...selectedImages];
       pairedImages.sort(() => Math.random() - 0.5);
@@ -228,9 +266,9 @@
         firstCard = this;
         return;
       }
-      
+
       secondCard = this;
-      
+
       // 2枚目がめくられた時点で1セット分の試行回数を加算
       attempts++;
       attemptsCountEl.textContent = attempts;
@@ -263,7 +301,7 @@
           firstCard.classList.remove('special');
           secondCard.classList.remove('special');
           resetBoard();
-        }, 1000);
+        }, 1800);
       }
     }
 
@@ -272,13 +310,16 @@
       lockBoard = false;
     }
 
+    // 全カードが裏返されているかチェック
     function checkGameOver() {
-      // 全カードが裏返されているかチェック
       const allFlipped = cards.every(card => card.classList.contains('flipped'));
       if (allFlipped) {
-        let resultMsg = "Game Clear!\n";
-        resultMsg += "Attempts: " + attempts;
-        resultText.textContent = resultMsg;
+        const resultMsg = `
+          <span class="split top">Game</span><br>
+          <span class="split bottom">Clear!</span><br>
+          <span class="attempt-text">Attempts: ${attempts}</span>
+        `;
+        resultText.innerHTML = resultMsg;
         resultScreen.style.display = 'flex';
       }
     }
