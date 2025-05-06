@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Teacher Assignment</title>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
@@ -310,6 +311,96 @@
       visibility: visible;
       opacity: 1;
     }
+
+    @media (max-width: 768px) {
+      body {
+        font-size: 10px;
+        padding: 10px;
+        flex-direction: column;
+        height: auto;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+
+      #startScreen h1 {
+        font-size: 20px;
+      }
+
+      #mainScreen {
+        height: auto;
+        min-height: 100vh;
+      }
+
+      .toggleItem {
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      #buttonsContainer {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .btn {
+        font-size: 10px;
+        padding: 6px 12px;
+        width: auto;
+      }
+
+      .btnFeaver {
+        font-size: 6px;
+        padding: 6px 10px;
+        width: 72px;
+        word-break: break-word;
+        text-align: center;
+      }
+
+      .tooltip-container {
+        width: 72px;
+        text-align: center;
+      }
+
+      .tooltip-container .tooltip-text {
+        font-size: 10px;
+        padding: 3px 5px;
+      }
+
+      #gradsContainer {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 5px;
+        margin-top: 5px;
+      }
+
+      .gradContainer {
+        font-size: 12px;
+        padding: 4px;
+      }
+
+      .gradName {
+        font-size: 12px;
+      }
+
+      .teacherInfoCell {
+        font-size: 12px;
+        padding: 4px;
+      }
+
+      .teacherInfoCell table {
+        font-size: 12px;
+        width: 100%;
+      }
+
+      .teacherInfoCell td {
+        padding: 2px;
+        font-size: 10px;
+      }
+
+    }
+
   </style>
 </head>
 <body>
@@ -733,6 +824,12 @@
       }
       gradDiv.currentY = Math.floor(gradDiv.currentY / itemHeight) * itemHeight;
       gradDiv.slotDiv.style.transform = `translateY(-${gradDiv.currentY}px)`;
+
+      // 担当講師の設定を追加
+      const items = gradDiv.slotDiv.querySelectorAll(".item");
+      const index = Math.floor(gradDiv.currentY / itemHeight) % items.length;
+      gradDiv.assignedTeacher = items[index].innerText;
+
       gradDiv.stopped = true;
       gradDiv.stopBtn.disabled = true;
       checkAllStopped();
